@@ -172,16 +172,6 @@
                     </div>
                     <div class="chat-messages" id="messages"></div>
                 </div>
-                <div class="tile tile-secondary upload-area" id="uploadArea">
-                    <h3>Upload Image</h3>
-                    <input type="file" id="fileInput" accept="image/*" />
-                    <button id="uploadBtn" class="send-button">Upload</button>
-                    <div id="uploadStatus"></div>
-                </div>
-                <div class="tile tile-accent image-display-area" id="imageDisplayArea">
-                    <h3>Uploaded Images</h3>
-                    <div id="uploadedImages"></div>
-                </div>
                 <div class="tile" id="joinArea">
                     <h3>Join Chat</h3>
                     <input type="text" id="username" placeholder="Enter username" />
@@ -190,12 +180,19 @@
                 <div id="inputArea">
                     <input type="text" id="input" placeholder="Type a message..." />
                     <button class="send-button" id="send">Send</button>
+                    <div class="upload-controls">
+                        <input type="file" id="fileInput" accept="image/*" style="display: none;" />
+                        <div id="uploadStatus"></div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <script>
+        // Initialize WebSocket connection
         const ws = new WebSocket('ws://localhost:8000/ws');
+        
+        // Get DOM elements
         const messagesDiv = document.getElementById('messages');
         const input = document.getElementById('input');
         const sendBtn = document.getElementById('send');
@@ -207,8 +204,10 @@
         const uploadBtn = document.getElementById('uploadBtn');
         const uploadStatus = document.getElementById('uploadStatus');
         const uploadedImages = document.getElementById('uploadedImages');
+        
         let joined = false;
 
+        // WebSocket message handler
         ws.onmessage = function(event) {
             try {
                 const data = JSON.parse(event.data);
@@ -238,6 +237,7 @@
             }
         };
 
+        // Send button click handler
         sendBtn.onclick = function() {
             const text = input.value.trim();
             if (text) {
@@ -246,12 +246,14 @@
             }
         };
 
+        // Input keyup handler (Enter key)
         input.addEventListener('keyup', function(e) {
             if (e.key === 'Enter') {
                 sendBtn.click();
             }
         });
 
+        // Join button click handler
         joinBtn.onclick = function() {
             const name = usernameInput.value.trim();
             if (name) {
@@ -263,12 +265,14 @@
             }
         };
 
+        // Username input keyup handler (Enter key)
         usernameInput.addEventListener('keyup', function(e) {
             if (e.key === 'Enter') {
                 joinBtn.click();
             }
-        };
+        });
 
+        // Upload button click handler
         uploadBtn.onclick = async function() {
             const file = fileInput.files[0];
             if (!file) { 
