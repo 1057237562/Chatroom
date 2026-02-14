@@ -1,0 +1,278 @@
+/* Metro UI CSS - Metro Style */
+:root {
+    --primary-color: #0078D4;
+    --secondary-color: #00BCD4;
+    --accent-color: #FF5722;
+    --light-color: #FFFFFF;
+    --dark-color: #212121;
+    --light-gray: #E0E0E0;
+    --medium-gray: #BDBDBD;
+    --dark-gray: #9E9E9E;
+    --sky-blue: #87CEEB;
+}
+
+body {
+    background: #f5f5f5;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#inputArea {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    padding: 10px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    z-index: 100;
+}
+
+#input {
+    flex: 1;
+    padding: 10px;
+    font-size: 1rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background: #fff;
+    transition: border-color 0.3s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+#input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 0 0 2px rgba(0,120,212,0.2);
+}
+
+#send {
+    padding: 10px 20px;
+    margin-left: 10px;
+    font-size: 1rem;
+    border-radius: 4px;
+    border: 1px solid var(--sky-blue);
+    background: var(--sky-blue);
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#send:hover {
+    background: #6bb4d9;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+#username {
+    padding: 10px;
+    font-size: 1rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background: #fff;
+    width: 200px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+#join {
+    padding: 10px 20px;
+    margin-left: 10px;
+    font-size: 1rem;
+    border-radius: 4px;
+    border: 1px solid var(--sky-blue);
+    background: var(--sky-blue);
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#join:hover {
+    background: #6bb4d9;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+.fancy-upload {
+    padding: 10px 20px;
+    margin-left: 10px;
+    font-size: 1rem;
+    border-radius: 4px;
+    border: 1px solid var(--secondary-color);
+    background: var(--secondary-color);
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.fancy-upload:hover {
+    background: #0097a7;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+.sidebar {
+    width: 250px;
+    background: #ffffff;
+    border-right: 1px solid #e0e0e0;
+    padding: 10px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    display: block;
+}
+
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    box-sizing: border-box;
+    background: #f5f5f5;
+}
+
+.tile {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    border: 1px solid #e0e0e0;
+}
+
+.tile:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
+.tile h3 {
+    margin-top: 0;
+    color: var(--primary-color);
+    font-weight: 600;
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 5px;
+}
+
+#messages {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #e0e0e0;
+}
+
+#messages div {
+    background: #e3f2fd;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 5px 0;
+    border-left: 4px solid var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+#inputArea {
+    display: flex;
+    padding: 10px;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border: 1px solid #e0e0e0;
+}
+
+#input {
+    flex: 1;
+    padding: 10px;
+    font-size: 1rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background: #fff;
+    transition: border-color 0.3s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+#input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 0 0 2px rgba(0,120,212,0.2);
+}
+
+.tile {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    border: 1px solid #e0e0e0;
+}
+
+.tile:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
+.tile h3 {
+    margin-top: 0;
+    color: var(--primary-color);
+    font-weight: 600;
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 5px;
+}
+
+#messages {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #e0e0e0;
+}
+
+#messages div {
+    background: #e3f2fd;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 5px 0;
+    border-left: 4px solid var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+#inputArea {
+    display: flex;
+    padding: 10px;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border: 1px solid #e0e0e0;
+}
+
+#input {
+    flex: 1;
+    padding: 10px;
+    font-size: 1rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background: #fff;
+    transition: border-color 0.3s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+#input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 0 0 2px rgba(0,120,212,0.2);
+}
