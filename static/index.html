@@ -81,11 +81,18 @@
             transition: all 0.3s;
             font-weight: 600;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            height: fit-content;
+            align-self: center;
         }
         .send-button:hover {
             background: #005a9e;
             transform: translateY(-1px);
             box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+        }
+        .upload-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         #joinArea {
             margin-bottom: 10px;
@@ -181,6 +188,7 @@
                     <input type="text" id="input" placeholder="Type a message..." />
                     <button class="send-button" id="send">Send</button>
                     <div class="upload-controls">
+                        <label for="fileInput" class="fancy-upload">Upload Image</label>
                         <input type="file" id="fileInput" accept="image/*" style="display: none;" />
                         <div id="uploadStatus"></div>
                     </div>
@@ -272,17 +280,16 @@
             }
         });
 
-        // Upload button click handler
-        uploadBtn.onclick = async function() {
+        // Handle file selection automatically
+        fileInput.addEventListener('change', async function() {
             const file = fileInput.files[0];
-            if (!file) { 
-                alert('Please select a file'); 
-                return; 
-            }
+            if (!file) return;
+            
             if (!file.type.startsWith('image/')) {
                 alert('Please select an image file');
                 return;
             }
+            
             const formData = new FormData();
             formData.append('file', file);
             try {
@@ -296,25 +303,16 @@
                     img.style.maxWidth = '300px';
                     img.style.maxHeight = '300px';
                     img.style.margin = '10px 0';
-                    img.className = 'uploaded-image';
                     messagesDiv.appendChild(img);
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                    uploadStatus.textContent = 'Upload successful!';
-                    // Clear the file input
-                    fileInput.value = '';
-                    // Reset status after 3 seconds
-                    setTimeout(() => {
-                        uploadStatus.textContent = '';
-                    }, 3000);
-                } else if (data.error) {
-                    alert(data.error);
-                    uploadStatus.textContent = 'Upload failed!';
                 }
-            } catch (e) { 
-                console.error(e); 
-                uploadStatus.textContent = 'Upload failed!';
+                uploadStatus.textContent = '';
+                fileInput.value = ''; // Clear the file input
+            } catch (error) {
+                uploadStatus.textContent = 'Upload failed';
+                console.error('Upload error:', error);
             }
-        };
+        });
     </script>
 </body>
 </html>
