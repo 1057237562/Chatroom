@@ -10,6 +10,7 @@ import logging
 from command import CommandFactory, CommandContext
 from command.factory import register_builtin_commands
 from db import init_db, save_message
+from utils import AIAgent, AgentConfig, AgentMessage, AgentCommand
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,13 +25,47 @@ register_builtin_commands()
 user_map: dict[WebSocket, str] = {}
 current_users: set[str] = set()
 
+# AI Agent instance
+ai_agent: AIAgent | None = None
+AGENT_NAME = "AI"
+ai_enabled = True  # Will be set based on OpenAI API key availability
+
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on application startup."""
+    """Initialize database and AI agent on application startup."""
+    global ai_agent, ai_enabled
     try:
         await init_db()
         logger.info("Database initialized successfully")
+        
+        # Initialize AI Agent if enabled
+        if ai_enabled:
+            try:
+                api_key = os.getenv("OPENAI_API_KEY")
+                if not api_key:
+                    logger.warning("OPENAI_API_KEY not set. AI Agent disabled.")
+                    ai_enabled = False
+                else:
+                    config = AgentConfig(
+                        openai_api_key=api_key,
+                        agent_name=AGENT_NAME,
+                        model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
+                        temperature=float(os.getenv("OPENAI_TEMPERATURE", "0.7")),
+                        max_tokens=int(os.getenv("OPENAI_MAX_TOKENS", "500")),
+                        timeout=int(os.getenv("OPENAI_TIMEOUT", "30")),
+                        retry_attempts=int(os.getenv("OPENAI_RETRY_ATTEMPTS", "3"))
+                    )
+                    ai_agent = AIAgent(config)
+                    
+                    # Test connection
+                    if await ai_agent.health_check():
+                        logger.info("AI Agent initialized successfully")
+                    else:
+                        logger.warning("AI Agent health check failed")
+            except Exception as e:
+                logger.error(f"Failed to initialize AI Agent: {e}")
+                ai_enabled = False
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
 
@@ -122,6 +157,72 @@ async def get_chat_history(
             "messages": []
         }
 
+@app.get("/api/history/initial")
+async def get_initial_history(limit: int = 20):
+    """
+    Retrieve initial chat history for startup display.
+    Returns the most recent messages in reverse chronological order.
+    
+    Query Parameters:
+        - limit: Number of messages to retrieve (default: 20, max: 50)
+    """
+    try:
+        from db import get_history
+        
+        # Validate limit for initial load
+        limit = min(int(limit), 50)
+        
+        # Get most recent messages (reverse order for startup display)
+        messages, total_count = await get_history(
+            limit=limit,
+            offset=0,
+            username=None,
+            keyword=None
+        )
+        
+        return {
+            "success": True,
+            "messages": list(reversed(messages)),  # Reverse to show oldest first
+            "total": total_count,
+            "has_more": total_count > limit
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving initial history: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "messages": [],
+            "has_more": False
+        }
+
+@app.get("/api/users")
+async def get_online_users():
+    """
+    Get list of currently online users.
+    
+    Returns:
+        {
+            "success": true,
+            "users": ["user1", "user2", ...],
+            "count": number
+        }
+    """
+    try:
+        users_list = sorted(list(current_users))
+        return {
+            "success": True,
+            "users": users_list,
+            "count": len(users_list)
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving users list: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "users": [],
+            "count": 0
+        }
+
 @app.post("/upload")
 async def upload_image(file: UploadFile):
     """Upload an image file with security validation."""
@@ -174,6 +275,17 @@ async def broadcast_message(message: str):
         content = parts[1].strip()
         # Save to database asynchronously without blocking
         asyncio.create_task(save_message(username, content, timestamp))
+    
+    # Process with AI Agent if enabled and message is from a real user
+    if ai_enabled and ai_agent and len(parts) == 2:
+        username = parts[0].strip()
+        content = parts[1].strip()
+        
+        # Don't reply to AI's own messages
+        if username != AGENT_NAME:
+            asyncio.create_task(
+                _process_ai_response(username, content, timestamp)
+            )
 
 async def handle_command(websocket: WebSocket, username: str, message: str):
     """Parse and execute a command."""
@@ -243,6 +355,145 @@ async def handle_command(websocket: WebSocket, username: str, message: str):
             "text": f"Command execution error: {str(e)}"
         })
         await websocket.send_text(error_response)
+
+async def _process_ai_response(username: str, content: str, timestamp: str):
+    """
+    Process AI response to user message asynchronously.
+    
+    Args:
+        username: Username of the sender
+        content: Message content
+        timestamp: Message timestamp
+    """
+    global ai_agent
+    
+    if not ai_agent:
+        return
+    
+    try:
+        # Update AI's user list
+        await ai_agent.update_user_list(sorted(list(current_users)))
+        
+        # Create message for AI to process
+        user_message = AgentMessage(
+            username=username,
+            content=content,
+            message_type="normal",
+            timestamp=timestamp
+        )
+        
+        # Get available commands
+        available_commands = list(CommandFactory.get_all_commands().keys())
+        
+        # Process message with AI
+        ai_response = await ai_agent.process_message(
+            user_message,
+            sorted(list(current_users)),
+            available_commands
+        )
+        
+        if not ai_response.success:
+            logger.warning(f"AI processing failed: {ai_response.message}")
+            return
+        
+        # Handle different response types
+        if ai_response.response_type == "command":
+            # AI wants to execute a command
+            if ai_response.command:
+                await _execute_ai_command(ai_response.command)
+        elif ai_response.response_type == "private":
+            # AI wants to send a private message
+            await _send_ai_private_message(username, ai_response.message)
+        else:
+            # AI wants to broadcast a reply
+            await broadcast_message(f"{AGENT_NAME}: {ai_response.message}")
+    
+    except Exception as e:
+        logger.error(f"Error processing AI response: {e}")
+
+async def _execute_ai_command(command: 'AgentCommand') -> None:
+    """
+    Execute a command on behalf of the AI agent.
+    
+    Args:
+        command: AgentCommand instance
+    """
+    try:
+        # Get the command from factory
+        cmd = CommandFactory.create(command.command_name)
+        
+        # Validate arguments
+        is_valid, error_msg = cmd.validate(command.args)
+        if not is_valid:
+            logger.warning(f"AI command validation failed: {error_msg}")
+            return
+        
+        # Create context for AI
+        # Find a WebSocket connection (or use None if no real user connection available)
+        # For commands that don't need WebSocket (like /help), we can use a mock
+        context = CommandContext(
+            websocket=None,
+            username=AGENT_NAME,
+            user_map=user_map,
+            current_users=current_users
+        )
+        
+        # Execute the command
+        response = await cmd.execute(context, command.args)
+        
+        # Handle response
+        if response.success:
+            if response.response_type == "private" and response.target_user:
+                # Send private message response
+                for ws, uname in user_map.items():
+                    if uname == response.target_user:
+                        private_payload = json.dumps({
+                            "type": "private",
+                            "from": AGENT_NAME,
+                            "text": response.message
+                        })
+                        await ws.send_text(private_payload)
+                        break
+            else:
+                # Broadcast command result
+                await broadcast_message(f"{AGENT_NAME}: {response.message}")
+        else:
+            logger.warning(f"AI command execution failed: {response.message}")
+    
+    except Exception as e:
+        logger.error(f"Error executing AI command: {e}")
+
+async def _send_ai_private_message(target_username: str, message: str):
+    """
+    Send a private message from AI to a user.
+    
+    Args:
+        target_username: Target user's username
+        message: Message content
+    """
+    try:
+        if target_username == AGENT_NAME:
+            logger.warning("AI tried to send message to itself")
+            return
+        
+        if target_username not in current_users:
+            logger.warning(f"Target user {target_username} not online")
+            return
+        
+        # Find target user's WebSocket
+        for ws, username in user_map.items():
+            if username == target_username:
+                private_payload = json.dumps({
+                    "type": "private",
+                    "from": AGENT_NAME,
+                    "text": message
+                })
+                await ws.send_text(private_payload)
+                logger.info(f"AI sent private message to {target_username}")
+                break
+    
+    except Exception as e:
+        logger.error(f"Error sending AI private message: {e}")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -500,3 +500,66 @@ button {
     padding: 12px;
     font-size: 12px;
 }
+
+/* History divider styles */
+.history-divider {
+    text-align: center;
+    margin: 20px 0 16px 0;
+    padding: 8px 0;
+    position: relative;
+}
+
+.divider-text {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    position: relative;
+    z-index: 2;
+}
+
+.history-divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, #ddd, transparent);
+    z-index: 1;
+}
+
+/* History message items */
+.history-message-item {
+    opacity: 0.85;
+    border-left: 3px solid #667eea;
+    background: linear-gradient(to right, rgba(102, 126, 234, 0.05), transparent);
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.history-message-item:hover {
+    opacity: 1;
+    border-left-color: #764ba2;
+    background: linear-gradient(to right, rgba(118, 75, 162, 0.08), transparent);
+    transform: translateX(2px);
+}
+
+.history-message-item .msg-user {
+    color: #667eea;
+    font-weight: 500;
+}
+
+.history-message-item .msg-time {
+    color: #999;
+    font-size: 11px;
+}
+
+.history-message-item .msg-text {
+    color: #555;
+    font-style: italic;
+}

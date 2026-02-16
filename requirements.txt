@@ -2,3 +2,4 @@ fastapi
 python-multipart
 uvicorn[standard]
 aiosqlite
+openai>=1.0.0
