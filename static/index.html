@@ -73,7 +73,35 @@
             <div class="voice-controls">
                 <button class="voice-btn" id="joinVoiceBtn" title="Join Voice">Join</button>
                 <button class="voice-btn mute-btn" id="voiceMuteBtn" title="Mute" style="display:none;">🎤</button>
+                <button class="voice-btn screen-btn" id="screenShareBtn" title="Share Screen" style="display:none;">📺</button>
                 <button class="voice-btn leave-btn" id="leaveVoiceBtn" title="Leave" style="display:none;">Leave</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="screen-share-container" id="screenShareContainer" style="display: none;">
+        <div class="screen-share-resize-handle nw" data-resize="nw"></div>
+        <div class="screen-share-resize-handle ne" data-resize="ne"></div>
+        <div class="screen-share-resize-handle sw" data-resize="sw"></div>
+        <div class="screen-share-resize-handle se" data-resize="se"></div>
+        <div class="screen-share-header">
+            <span class="screen-share-title" id="screenShareTitle">Screen Share</span>
+            <div class="screen-share-header-actions">
+                <button class="screen-share-fullscreen-btn" id="screenShareFullscreenBtn" title="Fullscreen">
+                    <svg class="fullscreen-icon" viewBox="0 0 24 24" width="16" height="16">
+                        <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" fill="currentColor"/>
+                    </svg>
+                    <svg class="exit-fullscreen-icon" viewBox="0 0 24 24" width="16" height="16" style="display:none;">
+                        <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" fill="currentColor"/>
+                    </svg>
+                </button>
+                <button class="screen-share-close" id="screenShareClose">×</button>
+            </div>
+        </div>
+        <div class="screen-share-content">
+            <img id="screenShareImage" alt="Screen Share" />
+            <div class="screen-share-overlay" id="screenShareOverlay">
+                <div class="screen-share-loading">Loading...</div>
             </div>
         </div>
     </div>
@@ -705,8 +733,9 @@
             const voiceWsUrl = `${wsProtocol}//${window.location.host}/ws/voice`;
             voiceClient = new VoiceChatClient(voiceWsUrl);
             
-            voiceClient.onUserListUpdate = (users) => {
-                updateVoiceParticipants(users);
+            voiceClient.onUserListUpdate = (users, screenSharer, screenActive) => {
+                updateVoiceParticipants(users, screenSharer);
+                updateScreenShareState(screenSharer, screenActive);
             };
             
             voiceClient.onConnected = (roomId) => {
@@ -717,6 +746,7 @@
             voiceClient.onDisconnected = () => {
                 updateVoiceStatus('disconnected', 'Disconnected');
                 showVoiceControls(false);
+                hideScreenShare();
             };
             
             voiceClient.onError = (error) => {
@@ -731,6 +761,15 @@
             voiceClient.onUserLeft = (username) => {
                 updateVoiceStatus('connected', `${username} left`);
             };
+            
+            voiceClient.onScreenStateChange = (sharer, active) => {
+                updateScreenShareState(sharer, active);
+            };
+            
+            voiceClient.onScreenFrame = (fromUser, frameData) => {
+                console.log('Received screen frame from:', fromUser, 'data length:', frameData ? frameData.length : 0);
+                displayScreenFrame(fromUser, frameData);
+            };
         }
 
         function updateVoiceStatus(status, message) {
@@ -740,7 +779,7 @@
             statusEl.className = `voice-status ${status}`;
         }
 
-        function updateVoiceParticipants(users) {
+        function updateVoiceParticipants(users, screenSharer) {
             const participantsEl = document.getElementById('voiceParticipants');
             
             if (!users || users.length === 0) {
@@ -748,17 +787,22 @@
                 return;
             }
             
-            participantsEl.innerHTML = users.map(user => `
-                <div class="voice-participant ${user === currentUser ? 'self' : ''}">
+            participantsEl.innerHTML = users.map(user => {
+                const isSharing = user === screenSharer;
+                const sharingClass = isSharing ? 'sharing' : '';
+                const sharingIndicator = isSharing ? '<span class="sharing-indicator">📺</span>' : '';
+                return `
+                <div class="voice-participant ${sharingClass} ${user === currentUser ? 'self' : ''}">
                     <div class="participant-avatar">${user.charAt(0).toUpperCase()}</div>
-                    <span class="participant-name">${user}${user === currentUser ? ' (You)' : ''}</span>
+                    <span class="participant-name">${user}${user === currentUser ? ' (You)' : ''}${sharingIndicator}</span>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         function showVoiceControls(connected) {
             document.getElementById('joinVoiceBtn').style.display = connected ? 'none' : 'inline-block';
             document.getElementById('voiceMuteBtn').style.display = connected ? 'inline-block' : 'none';
+            document.getElementById('screenShareBtn').style.display = connected ? 'inline-block' : 'none';
             document.getElementById('leaveVoiceBtn').style.display = connected ? 'inline-block' : 'none';
         }
 
@@ -799,6 +843,70 @@
             }
         }
 
+        function updateScreenShareState(sharer, active) {
+            const screenBtn = document.getElementById('screenShareBtn');
+            
+            if (sharer && sharer !== currentUser) {
+                screenBtn.style.display = 'none';
+                screenBtn.classList.remove('active');
+            } else if (voiceClient && voiceClient.isConnected) {
+                screenBtn.style.display = 'inline-block';
+                if (active && sharer === currentUser) {
+                    screenBtn.classList.add('active');
+                } else {
+                    screenBtn.classList.remove('active');
+                }
+            }
+            
+            if (active && sharer) {
+                showScreenShareContainer(sharer);
+            } else {
+                hideScreenShare();
+            }
+        }
+
+        function showScreenShareContainer(sharer) {
+            const container = document.getElementById('screenShareContainer');
+            const title = document.getElementById('screenShareTitle');
+            title.textContent = `${sharer}'s Screen`;
+            container.style.display = 'flex';
+        }
+
+        function hideScreenShare() {
+            const container = document.getElementById('screenShareContainer');
+            container.style.display = 'none';
+            const overlay = document.getElementById('screenShareOverlay');
+            overlay.classList.remove('hidden');
+        }
+
+        function displayScreenFrame(fromUser, frameData) {
+            const img = document.getElementById('screenShareImage');
+            const overlay = document.getElementById('screenShareOverlay');
+            
+            img.src = frameData;
+            overlay.classList.add('hidden');
+            
+            showScreenShareContainer(fromUser);
+        }
+
+        async function toggleScreenShare() {
+            if (!voiceClient || !voiceClient.isConnected) {
+                return;
+            }
+            
+            const screenBtn = document.getElementById('screenShareBtn');
+            
+            if (voiceClient.isCurrentlyScreenSharing()) {
+                voiceClient.stopScreenShare();
+                screenBtn.classList.remove('active');
+            } else {
+                const success = await voiceClient.startScreenShare();
+                if (success) {
+                    screenBtn.classList.add('active');
+                }
+            }
+        }
+
         document.getElementById('voiceToggleBtn').addEventListener('click', function() {
             const panel = document.getElementById('voicePanel');
             panel.classList.toggle('active');
@@ -811,6 +919,193 @@
         document.getElementById('joinVoiceBtn').addEventListener('click', joinVoiceChat);
         document.getElementById('leaveVoiceBtn').addEventListener('click', leaveVoiceChat);
         document.getElementById('voiceMuteBtn').addEventListener('click', toggleVoiceMute);
+        document.getElementById('screenShareBtn').addEventListener('click', toggleScreenShare);
+        
+        document.getElementById('screenShareClose').addEventListener('click', function() {
+            const container = document.getElementById('screenShareContainer');
+            container.style.display = 'none';
+            if (container.classList.contains('fullscreen')) {
+                container.classList.remove('fullscreen');
+            }
+        });
+        
+        (function initScreenShareFullscreen() {
+            const container = document.getElementById('screenShareContainer');
+            const fullscreenBtn = document.getElementById('screenShareFullscreenBtn');
+            let savedState = null;
+            
+            fullscreenBtn.addEventListener('click', function() {
+                if (container.classList.contains('fullscreen')) {
+                    container.classList.remove('fullscreen');
+                    if (savedState) {
+                        container.style.width = savedState.width;
+                        container.style.height = savedState.height;
+                        container.style.left = savedState.left;
+                        container.style.top = savedState.top;
+                        savedState = null;
+                    }
+                } else {
+                    savedState = {
+                        width: container.style.width || container.offsetWidth + 'px',
+                        height: container.style.height || container.offsetHeight + 'px',
+                        left: container.style.left || container.offsetLeft + 'px',
+                        top: container.style.top || container.offsetTop + 'px'
+                    };
+                    container.classList.add('fullscreen');
+                }
+            });
+            
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && container.classList.contains('fullscreen')) {
+                    container.classList.remove('fullscreen');
+                    if (savedState) {
+                        container.style.width = savedState.width;
+                        container.style.height = savedState.height;
+                        container.style.left = savedState.left;
+                        container.style.top = savedState.top;
+                        savedState = null;
+                    }
+                }
+            });
+        })();
+        
+        (function initScreenShareDrag() {
+            const container = document.getElementById('screenShareContainer');
+            const header = container.querySelector('.screen-share-header');
+            let isDragging = false;
+            let startX, startY, initialX, initialY;
+            
+            header.addEventListener('mousedown', function(e) {
+                if (e.target.classList.contains('screen-share-close') || 
+                    e.target.closest('.screen-share-fullscreen-btn') ||
+                    container.classList.contains('fullscreen')) {
+                    return;
+                }
+                isDragging = true;
+                container.classList.add('dragging');
+                
+                const rect = container.getBoundingClientRect();
+                startX = e.clientX;
+                startY = e.clientY;
+                initialX = rect.left;
+                initialY = rect.top;
+                
+                container.style.transform = 'none';
+                container.style.left = initialX + 'px';
+                container.style.top = initialY + 'px';
+                
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+                
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+                
+                let newX = initialX + deltaX;
+                let newY = initialY + deltaY;
+                
+                const maxX = window.innerWidth - container.offsetWidth;
+                const maxY = window.innerHeight - container.offsetHeight;
+                
+                newX = Math.max(0, Math.min(newX, maxX));
+                newY = Math.max(0, Math.min(newY, maxY));
+                
+                container.style.left = newX + 'px';
+                container.style.top = newY + 'px';
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (isDragging) {
+                    isDragging = false;
+                    container.classList.remove('dragging');
+                }
+            });
+        })();
+        
+        (function initScreenShareResize() {
+            const container = document.getElementById('screenShareContainer');
+            const handles = container.querySelectorAll('.screen-share-resize-handle');
+            let isResizing = false;
+            let currentHandle = null;
+            let startX, startY, startWidth, startHeight, startLeft, startTop;
+            const minWidth = 320;
+            const minHeight = 200;
+            
+            handles.forEach(handle => {
+                handle.addEventListener('mousedown', function(e) {
+                    if (container.classList.contains('fullscreen')) {
+                        return;
+                    }
+                    isResizing = true;
+                    container.classList.add('resizing');
+                    currentHandle = this.dataset.resize;
+                    
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    startWidth = container.offsetWidth;
+                    startHeight = container.offsetHeight;
+                    startLeft = container.offsetLeft;
+                    startTop = container.offsetTop;
+                    
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isResizing) return;
+                
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+                
+                let newWidth = startWidth;
+                let newHeight = startHeight;
+                let newLeft = startLeft;
+                let newTop = startTop;
+                
+                switch (currentHandle) {
+                    case 'se':
+                        newWidth = Math.max(minWidth, startWidth + deltaX);
+                        newHeight = Math.max(minHeight, startHeight + deltaY);
+                        break;
+                    case 'sw':
+                        newWidth = Math.max(minWidth, startWidth - deltaX);
+                        newHeight = Math.max(minHeight, startHeight + deltaY);
+                        newLeft = startLeft + (startWidth - newWidth);
+                        break;
+                    case 'ne':
+                        newWidth = Math.max(minWidth, startWidth + deltaX);
+                        newHeight = Math.max(minHeight, startHeight - deltaY);
+                        newTop = startTop + (startHeight - newHeight);
+                        break;
+                    case 'nw':
+                        newWidth = Math.max(minWidth, startWidth - deltaX);
+                        newHeight = Math.max(minHeight, startHeight - deltaY);
+                        newLeft = startLeft + (startWidth - newWidth);
+                        newTop = startTop + (startHeight - newHeight);
+                        break;
+                }
+                
+                const maxWidth = window.innerWidth - newLeft;
+                const maxHeight = window.innerHeight - newTop;
+                
+                newWidth = Math.min(newWidth, maxWidth);
+                newHeight = Math.min(newHeight, maxHeight);
+                
+                container.style.width = newWidth + 'px';
+                container.style.height = newHeight + 'px';
+                container.style.left = newLeft + 'px';
+                container.style.top = newTop + 'px';
+            });
+            
+            document.addEventListener('mouseup', function() {
+                isResizing = false;
+                currentHandle = null;
+                container.classList.remove('resizing');
+            });
+        })();
 
         window.addEventListener('load', function() {
             requestNotificationPermission();

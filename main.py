@@ -144,6 +144,26 @@ async def voice_websocket_endpoint(websocket: WebSocket):
                         audio_data = message.get("data", [])
                         if audio_data:
                             await room.broadcast_audio(username, audio_data)
+                
+                elif msg_type == "screen_start":
+                    if username and room:
+                        success = await room.start_screen_share(username)
+                        if not success:
+                            await websocket.send_json({
+                                "type": "screen_error",
+                                "message": "Screen share already active by another user"
+                            })
+                
+                elif msg_type == "screen_stop":
+                    if username and room:
+                        await room.stop_screen_share(username)
+                
+                elif msg_type == "screen_frame":
+                    if username and room:
+                        frame_data = message.get("data")
+                        if frame_data:
+                            # logger.info(f"Received screen frame from {username}, size: {len(frame_data)}")
+                            await room.broadcast_screen_frame(username, frame_data)
                             
             except json.JSONDecodeError:
                 logger.warning("Invalid JSON received on voice endpoint")

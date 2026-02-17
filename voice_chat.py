@@ -3,6 +3,7 @@ import logging
 from typing import Optional
 from fastapi import WebSocket
 from collections import defaultdict
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -12,25 +13,48 @@ class VoiceRoom:
         self.room_id = room_id
         self.participants: dict[str, WebSocket] = {}
         self._lock = asyncio.Lock()
+        self.screen_sharer: Optional[str] = None
+        self.screen_share_active: bool = False
     
     async def add_participant(self, username: str, websocket: WebSocket) -> None:
         async with self._lock:
             self.participants[username] = websocket
             logger.info(f"User {username} joined voice room {self.room_id}")
             await self._broadcast_user_list()
+            await self._send_screen_state_to_new_participant(username)
     
     async def remove_participant(self, username: str) -> None:
         async with self._lock:
             if username in self.participants:
                 del self.participants[username]
                 logger.info(f"User {username} left voice room {self.room_id}")
+                
+                if self.screen_sharer == username:
+                    self.screen_sharer = None
+                    self.screen_share_active = False
+                    await self._broadcast_screen_state()
+                
                 await self._broadcast_user_list()
+    
+    async def _send_screen_state_to_new_participant(self, username: str) -> None:
+        if username in self.participants:
+            message = {
+                "type": "screen_state",
+                "sharer": self.screen_sharer,
+                "active": self.screen_share_active
+            }
+            try:
+                await self.participants[username].send_json(message)
+            except Exception as e:
+                logger.error(f"Failed to send screen state to {username}: {e}")
     
     async def _broadcast_user_list(self) -> None:
         user_list = list(self.participants.keys())
         message = {
             "type": "user_list",
-            "users": user_list
+            "users": user_list,
+            "screen_sharer": self.screen_sharer,
+            "screen_active": self.screen_share_active
         }
         await self._broadcast(message)
     
@@ -58,11 +82,62 @@ class VoiceRoom:
         }
         await self._broadcast(message, exclude=sender)
     
+    async def start_screen_share(self, username: str) -> bool:
+        async with self._lock:
+            if self.screen_share_active and self.screen_sharer != username:
+                logger.warning(f"Screen share already active by {self.screen_sharer}")
+                return False
+            
+            self.screen_sharer = username
+            self.screen_share_active = True
+            await self._broadcast_screen_state()
+            logger.info(f"User {username} started screen sharing in room {self.room_id}")
+            return True
+    
+    async def stop_screen_share(self, username: str) -> bool:
+        async with self._lock:
+            if self.screen_sharer != username:
+                return False
+            
+            self.screen_sharer = None
+            self.screen_share_active = False
+            await self._broadcast_screen_state()
+            logger.info(f"User {username} stopped screen sharing in room {self.room_id}")
+            return True
+    
+    async def _broadcast_screen_state(self) -> None:
+        message = {
+            "type": "screen_state",
+            "sharer": self.screen_sharer,
+            "active": self.screen_share_active
+        }
+        await self._broadcast(message)
+    
+    async def broadcast_screen_frame(self, sender: str, frame_data: str) -> None:
+        # logger.info(f"broadcast_screen_frame: sender={sender}, screen_sharer={self.screen_sharer}")
+        if self.screen_sharer != sender:
+            logger.warning(f"Frame rejected: {sender} is not the screen sharer ({self.screen_sharer})")
+            return
+        
+        message = {
+            "type": "screen_frame",
+            "from_user": sender,
+            "data": frame_data
+        }
+        # logger.info(f"Broadcasting screen frame to {len(self.participants)} participants (including sender)")
+        await self._broadcast(message)
+    
     def get_participants(self) -> list[str]:
         return list(self.participants.keys())
     
     def is_empty(self) -> bool:
         return len(self.participants) == 0
+    
+    def get_screen_share_state(self) -> dict:
+        return {
+            "sharer": self.screen_sharer,
+            "active": self.screen_share_active
+        }
 
 
 class VoiceChatManager:
