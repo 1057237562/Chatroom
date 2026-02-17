@@ -36,7 +36,8 @@ class VoiceRoom:
     
     async def _broadcast(self, message: dict, exclude: Optional[str] = None) -> None:
         disconnected = []
-        for username, ws in self.participants.items():
+        participants = list(self.participants.items())
+        for username, ws in participants:
             if username == exclude:
                 continue
             try:
