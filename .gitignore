@@ -35,8 +35,8 @@ Thumbs.db
 *.log
 logs/
 
-# Uploads (optional - uncomment if you don't want to track uploads)
-# static/uploads/
+# Uploads
+static/uploads/
 
 # AI/IDE tool files
 .codebuddy/
