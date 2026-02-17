@@ -100,8 +100,9 @@
     
     <script src="/static/voip.js"></script>
     <script>
-        // Initialize WebSocket connection
-        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        // Initialize WebSocket connection (auto-detect ws/wss based on protocol)
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
         let wsReady = false;
         
         // Get DOM elements
@@ -731,7 +732,8 @@
         let callDurationInterval = null;
 
         function initVOIP() {
-            const voipWsUrl = `ws://${window.location.host}/ws/voip`;
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const voipWsUrl = `${wsProtocol}//${window.location.host}/ws/voip`;
             voipClient = new VOIPClient(voipWsUrl);
             
             voipClient.onCallRequest = (fromUser, callId, callType) => {

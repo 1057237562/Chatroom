@@ -1,6 +1,7 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, Request
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 import uvicorn
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 import json
 import os
@@ -20,6 +21,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+app.add_middleware(HTTPSRedirectMiddleware)
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
 register_builtin_commands()
@@ -527,11 +529,40 @@ async def _send_ai_private_message(target_username: str, message: str):
         logger.error(f"Error sending AI private message: {e}")
 
 if __name__ == "__main__":
+    import threading
+    import socket
+    
+    HTTP_PORT = 80
+    HTTPS_PORT = 443
+    
+    def run_http_redirect():
+        redirect_app = FastAPI()
+        
+        @redirect_app.get("/{path:path}")
+        async def redirect_to_https(request: Request, path: str):
+            host = request.headers.get("host", "81.68.133.63")
+            if ":" in host:
+                host = host.split(":")[0]
+            https_url = f"https://{host}:{HTTPS_PORT}/{path}"
+            return RedirectResponse(url=https_url, status_code=301)
+        
+        uvicorn.run(
+            redirect_app,
+            host="0.0.0.0",
+            port=HTTP_PORT,
+            log_level="warning"
+        )
+    
     asyncio.run(startup_event())
+    
+    http_thread = threading.Thread(target=run_http_redirect, daemon=True)
+    http_thread.start()
+    logger.info(f"HTTP redirect server started on port {HTTP_PORT} -> HTTPS port {HTTPS_PORT}")
+    
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=HTTPS_PORT,
         reload=True,
         ssl_keyfile="key.pem",
         ssl_certfile="cert.pem"
