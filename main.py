@@ -496,4 +496,11 @@ async def _send_ai_private_message(target_username: str, message: str):
 
 if __name__ == "__main__":
     asyncio.run(startup_event())
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        ssl_keyfile="key.pem",
+        ssl_certfile="cert.pem"
+    )
