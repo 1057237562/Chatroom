@@ -284,8 +284,19 @@ class VoiceChatClient {
             video.srcObject = this.screenStream;
             video.muted = true;
             video.playsInline = true;
+            video.autoplay = true;
             
-            await video.play();
+            await new Promise((resolve, reject) => {
+                video.onloadedmetadata = () => {
+                    console.log('Video metadata loaded:', video.videoWidth, 'x', video.videoHeight);
+                    resolve();
+                };
+                video.onerror = (e) => {
+                    console.error('Video error:', e);
+                    reject(e);
+                };
+                video.play().catch(reject);
+            });
             
             this._screenVideo = video;
             
@@ -325,6 +336,12 @@ class VoiceChatClient {
             let width = video.videoWidth;
             let height = video.videoHeight;
             
+            if (!width || !height) {
+                console.warn('Video dimensions not ready, retrying...');
+                this._frameTimeout = setTimeout(captureFrame, 100);
+                return;
+            }
+            
             if (width > this.maxWidth) {
                 const ratio = this.maxWidth / width;
                 width = this.maxWidth;
@@ -344,6 +361,8 @@ class VoiceChatClient {
             ctx.drawImage(video, 0, 0, width, height);
             
             const dataUrl = canvas.toDataURL('image/jpeg', this.quality);
+            
+            console.log('Sending screen frame, size:', dataUrl.length);
             
             this.ws.send(JSON.stringify({
                 type: 'screen_frame',

@@ -114,7 +114,9 @@ class VoiceRoom:
         await self._broadcast(message)
     
     async def broadcast_screen_frame(self, sender: str, frame_data: str) -> None:
+        # logger.info(f"broadcast_screen_frame: sender={sender}, screen_sharer={self.screen_sharer}")
         if self.screen_sharer != sender:
+            logger.warning(f"Frame rejected: {sender} is not the screen sharer ({self.screen_sharer})")
             return
         
         message = {
@@ -122,7 +124,8 @@ class VoiceRoom:
             "from_user": sender,
             "data": frame_data
         }
-        await self._broadcast(message, exclude=sender)
+        # logger.info(f"Broadcasting screen frame to {len(self.participants)} participants (including sender)")
+        await self._broadcast(message)
     
     def get_participants(self) -> list[str]:
         return list(self.participants.keys())

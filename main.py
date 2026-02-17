@@ -162,6 +162,7 @@ async def voice_websocket_endpoint(websocket: WebSocket):
                     if username and room:
                         frame_data = message.get("data")
                         if frame_data:
+                            # logger.info(f"Received screen frame from {username}, size: {len(frame_data)}")
                             await room.broadcast_screen_frame(username, frame_data)
                             
             except json.JSONDecodeError:
@@ -564,7 +565,7 @@ if __name__ == "__main__":
     import socket
     
     HTTP_PORT = 80
-    HTTPS_PORT = 443
+    HTTPS_PORT = 8000
     
     def run_http_redirect():
         redirect_app = FastAPI()

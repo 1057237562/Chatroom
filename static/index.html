@@ -80,6 +80,10 @@
     </div>
     
     <div class="screen-share-container" id="screenShareContainer" style="display: none;">
+        <div class="screen-share-resize-handle nw" data-resize="nw"></div>
+        <div class="screen-share-resize-handle ne" data-resize="ne"></div>
+        <div class="screen-share-resize-handle sw" data-resize="sw"></div>
+        <div class="screen-share-resize-handle se" data-resize="se"></div>
         <div class="screen-share-header">
             <span class="screen-share-title" id="screenShareTitle">Screen Share</span>
             <button class="screen-share-close" id="screenShareClose">×</button>
@@ -753,6 +757,7 @@
             };
             
             voiceClient.onScreenFrame = (fromUser, frameData) => {
+                console.log('Received screen frame from:', fromUser, 'data length:', frameData ? frameData.length : 0);
                 displayScreenFrame(fromUser, frameData);
             };
         }
@@ -910,6 +915,137 @@
             const container = document.getElementById('screenShareContainer');
             container.style.display = 'none';
         });
+        
+        (function initScreenShareDrag() {
+            const container = document.getElementById('screenShareContainer');
+            const header = container.querySelector('.screen-share-header');
+            let isDragging = false;
+            let startX, startY, initialX, initialY;
+            
+            header.addEventListener('mousedown', function(e) {
+                if (e.target.classList.contains('screen-share-close')) {
+                    return;
+                }
+                isDragging = true;
+                container.classList.add('dragging');
+                
+                const rect = container.getBoundingClientRect();
+                startX = e.clientX;
+                startY = e.clientY;
+                initialX = rect.left;
+                initialY = rect.top;
+                
+                container.style.transform = 'none';
+                container.style.left = initialX + 'px';
+                container.style.top = initialY + 'px';
+                
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+                
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+                
+                let newX = initialX + deltaX;
+                let newY = initialY + deltaY;
+                
+                const maxX = window.innerWidth - container.offsetWidth;
+                const maxY = window.innerHeight - container.offsetHeight;
+                
+                newX = Math.max(0, Math.min(newX, maxX));
+                newY = Math.max(0, Math.min(newY, maxY));
+                
+                container.style.left = newX + 'px';
+                container.style.top = newY + 'px';
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (isDragging) {
+                    isDragging = false;
+                    container.classList.remove('dragging');
+                }
+            });
+        })();
+        
+        (function initScreenShareResize() {
+            const container = document.getElementById('screenShareContainer');
+            const handles = container.querySelectorAll('.screen-share-resize-handle');
+            let isResizing = false;
+            let currentHandle = null;
+            let startX, startY, startWidth, startHeight, startLeft, startTop;
+            const minWidth = 320;
+            const minHeight = 200;
+            
+            handles.forEach(handle => {
+                handle.addEventListener('mousedown', function(e) {
+                    isResizing = true;
+                    currentHandle = this.dataset.resize;
+                    
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    startWidth = container.offsetWidth;
+                    startHeight = container.offsetHeight;
+                    startLeft = container.offsetLeft;
+                    startTop = container.offsetTop;
+                    
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isResizing) return;
+                
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+                
+                let newWidth = startWidth;
+                let newHeight = startHeight;
+                let newLeft = startLeft;
+                let newTop = startTop;
+                
+                switch (currentHandle) {
+                    case 'se':
+                        newWidth = Math.max(minWidth, startWidth + deltaX);
+                        newHeight = Math.max(minHeight, startHeight + deltaY);
+                        break;
+                    case 'sw':
+                        newWidth = Math.max(minWidth, startWidth - deltaX);
+                        newHeight = Math.max(minHeight, startHeight + deltaY);
+                        newLeft = startLeft + (startWidth - newWidth);
+                        break;
+                    case 'ne':
+                        newWidth = Math.max(minWidth, startWidth + deltaX);
+                        newHeight = Math.max(minHeight, startHeight - deltaY);
+                        newTop = startTop + (startHeight - newHeight);
+                        break;
+                    case 'nw':
+                        newWidth = Math.max(minWidth, startWidth - deltaX);
+                        newHeight = Math.max(minHeight, startHeight - deltaY);
+                        newLeft = startLeft + (startWidth - newWidth);
+                        newTop = startTop + (startHeight - newHeight);
+                        break;
+                }
+                
+                const maxWidth = window.innerWidth - newLeft;
+                const maxHeight = window.innerHeight - newTop;
+                
+                newWidth = Math.min(newWidth, maxWidth);
+                newHeight = Math.min(newHeight, maxHeight);
+                
+                container.style.width = newWidth + 'px';
+                container.style.height = newHeight + 'px';
+                container.style.left = newLeft + 'px';
+                container.style.top = newTop + 'px';
+            });
+            
+            document.addEventListener('mouseup', function() {
+                isResizing = false;
+                currentHandle = null;
+            });
+        })();
 
         window.addEventListener('load', function() {
             requestNotificationPermission();
