@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FastAPI Chatroom</title>
     <link rel="stylesheet" href="/static/metro.css">
+    <link rel="stylesheet" href="/static/voip.css">
 </head>
 <body>
     <div class="container">
@@ -53,6 +54,51 @@
             </div>
         </div>
     </div>
+    
+    <div class="voip-container" id="voipContainer">
+        <button class="voip-call-btn audio-call" id="voipToggleBtn" title="Voice/Video Call">
+            📞
+        </button>
+        <div class="voip-panel" id="voipPanel">
+            <div class="voip-panel-header">
+                <h3>Start a Call</h3>
+                <button class="voip-panel-close" id="voipPanelClose">×</button>
+            </div>
+            <div class="voip-user-list" id="voipUserList">
+                <div class="voip-no-users">No online users</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="voip-overlay" id="voipOverlay"></div>
+    
+    <div class="voip-incoming-call" id="voipIncomingCall">
+        <div class="voip-incoming-avatar" id="incomingAvatar">?</div>
+        <div class="voip-incoming-name" id="incomingName">Unknown</div>
+        <div class="voip-incoming-type" id="incomingType">Incoming call...</div>
+        <div class="voip-incoming-actions">
+            <button class="voip-btn-accept" id="acceptCallBtn" title="Accept">✓</button>
+            <button class="voip-btn-reject" id="rejectCallBtn" title="Reject">✕</button>
+        </div>
+    </div>
+    
+    <div class="voip-active-call" id="voipActiveCall">
+        <div class="voip-video-container" id="videoContainer">
+            <video class="voip-remote-video" id="remoteVideo" autoplay playsinline></video>
+            <video class="voip-local-video" id="localVideo" autoplay playsinline muted></video>
+            <div class="voip-call-info">
+                <h3 id="activeCallName">Unknown</h3>
+                <div class="voip-call-duration" id="callDuration">00:00</div>
+            </div>
+        </div>
+        <div class="voip-call-controls">
+            <button class="voip-control-btn mute" id="muteBtn" title="Mute">🎤</button>
+            <button class="voip-control-btn video-toggle" id="videoToggleBtn" title="Toggle Video">📹</button>
+            <button class="voip-control-btn end-call" id="endCallBtn" title="End Call">📞</button>
+        </div>
+    </div>
+    
+    <script src="/static/voip.js"></script>
     <script>
         // Initialize WebSocket connection
         const ws = new WebSocket(`ws://${window.location.host}/ws`);
@@ -275,6 +321,9 @@
                         
                         userListDiv.appendChild(div);
                     });
+                    if (typeof updateVOIPUserList === 'function') {
+                        updateVOIPUserList(data.users);
+                    }
                 } else if (data.type === 'message') {
                     const msg = document.createElement('div');
                     msg.className = 'message-item';
@@ -520,6 +569,7 @@
                 usernameInput.value = savedUsername;
                 currentUser = savedUsername;
                 ws.send(savedUsername);
+                initVOIP();
             }
         });
 
@@ -670,19 +720,209 @@
             }
         }
 
-        // Initialize page
+        let voipClient = null;
+        let incomingCallData = null;
+        let callStartTime = null;
+        let callDurationInterval = null;
+
+        function initVOIP() {
+            const voipWsUrl = `ws://${window.location.host}/ws/voip`;
+            voipClient = new VOIPClient(voipWsUrl);
+            
+            voipClient.onCallRequest = (fromUser, callId, callType) => {
+                incomingCallData = { fromUser, callId, callType };
+                showIncomingCall(fromUser, callType);
+            };
+            
+            voipClient.onCallAccepted = (fromUser) => {
+                hideIncomingCall();
+                showActiveCall(fromUser);
+            };
+            
+            voipClient.onCallRejected = (fromUser) => {
+                hideIncomingCall();
+                alert(`${fromUser} rejected your call`);
+            };
+            
+            voipClient.onCallEnded = (fromUser) => {
+                hideActiveCall();
+                hideIncomingCall();
+            };
+            
+            voipClient.onRemoteStream = (stream) => {
+                const remoteVideo = document.getElementById('remoteVideo');
+                remoteVideo.srcObject = stream;
+            };
+            
+            voipClient.onError = (error) => {
+                console.error('VOIP Error:', error);
+                alert(`Call error: ${error}`);
+                hideActiveCall();
+                hideIncomingCall();
+            };
+            
+            voipClient.onCallBusy = (fromUser) => {
+                alert(`${fromUser} is currently in another call`);
+            };
+            
+            if (currentUser) {
+                voipClient.connect(currentUser).catch(console.error);
+            }
+        }
+
+        function showIncomingCall(fromUser, callType) {
+            document.getElementById('incomingAvatar').textContent = fromUser.charAt(0).toUpperCase();
+            document.getElementById('incomingName').textContent = fromUser;
+            document.getElementById('incomingType').textContent = 
+                callType === 'video' ? 'Incoming video call...' : 'Incoming audio call...';
+            document.getElementById('voipIncomingCall').classList.add('active');
+            document.getElementById('voipOverlay').classList.add('active');
+        }
+
+        function hideIncomingCall() {
+            document.getElementById('voipIncomingCall').classList.remove('active');
+            document.getElementById('voipOverlay').classList.remove('active');
+            incomingCallData = null;
+        }
+
+        function showActiveCall(withUser) {
+            document.getElementById('activeCallName').textContent = withUser;
+            document.getElementById('voipActiveCall').classList.add('active');
+            
+            if (voipClient.localStream) {
+                document.getElementById('localVideo').srcObject = voipClient.localStream;
+            }
+            
+            const videoContainer = document.getElementById('videoContainer');
+            if (voipClient.currentCallType === 'audio') {
+                videoContainer.innerHTML = `
+                    <div class="voip-audio-only-indicator">
+                        <div class="voip-audio-only-avatar">${withUser.charAt(0).toUpperCase()}</div>
+                        <h3>${withUser}</h3>
+                    </div>
+                `;
+            }
+            
+            callStartTime = Date.now();
+            callDurationInterval = setInterval(updateCallDuration, 1000);
+        }
+
+        function hideActiveCall() {
+            document.getElementById('voipActiveCall').classList.remove('active');
+            if (callDurationInterval) {
+                clearInterval(callDurationInterval);
+                callDurationInterval = null;
+            }
+            callStartTime = null;
+            document.getElementById('callDuration').textContent = '00:00';
+        }
+
+        function updateCallDuration() {
+            if (!callStartTime) return;
+            const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const seconds = (elapsed % 60).toString().padStart(2, '0');
+            document.getElementById('callDuration').textContent = `${minutes}:${seconds}`;
+        }
+
+        function updateVOIPUserList(users) {
+            const voipUserList = document.getElementById('voipUserList');
+            const filteredUsers = users.filter(u => u !== currentUser);
+            
+            if (filteredUsers.length === 0) {
+                voipUserList.innerHTML = '<div class="voip-no-users">No online users</div>';
+                return;
+            }
+            
+            voipUserList.innerHTML = filteredUsers.map(user => `
+                <div class="voip-user-item">
+                    <div class="voip-user-info">
+                        <div class="voip-user-avatar">${user.charAt(0).toUpperCase()}</div>
+                        <span class="voip-user-name">${user}</span>
+                    </div>
+                    <div class="voip-call-actions">
+                        <button class="audio-btn" onclick="startCall('${user}', 'audio')" title="Audio Call">📞</button>
+                        <button class="video-btn" onclick="startCall('${user}', 'video')" title="Video Call">📹</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function startCall(targetUser, callType) {
+            if (!voipClient) {
+                alert('VOIP not initialized');
+                return;
+            }
+            
+            try {
+                await voipClient.startCall(targetUser, callType);
+            } catch (error) {
+                console.error('Failed to start call:', error);
+                alert(`Failed to start call: ${error.message}`);
+            }
+        }
+
+        document.getElementById('voipToggleBtn').addEventListener('click', function() {
+            const panel = document.getElementById('voipPanel');
+            panel.classList.toggle('active');
+        });
+
+        document.getElementById('voipPanelClose').addEventListener('click', function() {
+            document.getElementById('voipPanel').classList.remove('active');
+        });
+
+        document.getElementById('acceptCallBtn').addEventListener('click', async function() {
+            if (!incomingCallData || !voipClient) return;
+            
+            try {
+                await voipClient.acceptCall(incomingCallData.callId, incomingCallData.callType);
+                showActiveCall(incomingCallData.fromUser);
+                hideIncomingCall();
+            } catch (error) {
+                console.error('Failed to accept call:', error);
+                alert(`Failed to accept call: ${error.message}`);
+            }
+        });
+
+        document.getElementById('rejectCallBtn').addEventListener('click', function() {
+            if (!incomingCallData || !voipClient) return;
+            voipClient.rejectCall(incomingCallData.callId);
+            hideIncomingCall();
+        });
+
+        document.getElementById('endCallBtn').addEventListener('click', function() {
+            if (voipClient) {
+                voipClient.endCall();
+            }
+            hideActiveCall();
+        });
+
+        document.getElementById('muteBtn').addEventListener('click', function() {
+            if (voipClient) {
+                const isMuted = voipClient.toggleMute();
+                this.classList.toggle('active', isMuted);
+                this.textContent = isMuted ? '🔇' : '🎤';
+            }
+        });
+
+        document.getElementById('videoToggleBtn').addEventListener('click', function() {
+            if (voipClient && voipClient.currentCallType === 'video') {
+                const isOff = voipClient.toggleVideo();
+                this.classList.toggle('active', isOff);
+                this.textContent = isOff ? '🚫' : '📹';
+            }
+        });
+
         window.addEventListener('load', function() {
             requestNotificationPermission();
             const savedUsername = loadUsername();
             if (savedUsername) {
                 usernameInput.value = savedUsername;
                 currentUser = savedUsername;
-                // If WebSocket is already ready, send username immediately
                 if (wsReady) {
                     ws.send(savedUsername);
                 }
             }
-            // Load initial chat history (instead of sidebar history)
             loadInitialHistory();
         });
     </script>

@@ -11,6 +11,7 @@ from command import CommandFactory, CommandContext
 from command.factory import register_builtin_commands
 from db import init_db, save_message
 from utils import AIAgent, AgentConfig, AgentMessage, AgentCommand
+from voip import WebRTCManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,12 +19,12 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
-# Register built-in commands
 register_builtin_commands()
 
-# In-memory store for connections and usernames
 user_map: dict[WebSocket, str] = {}
 current_users: set[str] = set()
+
+voip_manager = WebRTCManager()
 
 # AI Agent instance
 ai_agent: AIAgent | None = None
@@ -108,8 +109,35 @@ async def websocket_endpoint(websocket: WebSocket):
         if websocket in user_map:
             username = user_map.pop(websocket)
             current_users.discard(username)
+            voip_manager.unregister_connection(username)
             await broadcast_user_list()
         print("Client disconnected")
+
+@app.websocket("/ws/voip")
+async def voip_websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    username = None
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                message = json.loads(data)
+                if message.get("type") == "register":
+                    username = message.get("username")
+                    if username:
+                        voip_manager.register_connection(username, websocket)
+                        await websocket.send_text(json.dumps({
+                            "type": "registered",
+                            "username": username
+                        }))
+                else:
+                    await voip_manager.handle_message(websocket, username, message)
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON received on VOIP endpoint")
+    except WebSocketDisconnect:
+        if username:
+            voip_manager.unregister_connection(username)
+        logger.info(f"VOIP client disconnected: {username}")
 
 @app.get("/api/history")
 async def get_chat_history(
