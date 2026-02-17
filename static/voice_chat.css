@@ -221,3 +221,116 @@
         bottom: 60px;
     }
 }
+
+.voice-btn.screen-btn {
+    background: #17a2b8;
+    color: white;
+    font-size: 18px;
+    padding: 10px 15px;
+}
+
+.voice-btn.screen-btn:hover {
+    background: #138496;
+}
+
+.voice-btn.screen-btn.active {
+    background: #28a745;
+}
+
+.voice-participant.sharing {
+    background: #d4edda;
+    border: 2px solid #28a745;
+}
+
+.voice-participant.sharing .participant-avatar {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+
+.sharing-indicator {
+    font-size: 12px;
+    color: #28a745;
+    margin-left: 5px;
+}
+
+.screen-share-container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2000;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    min-width: 320px;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.screen-share-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+}
+
+.screen-share-title {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.screen-share-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+    padding: 0;
+    line-height: 1;
+}
+
+.screen-share-close:hover {
+    opacity: 1;
+}
+
+.screen-share-content {
+    position: relative;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+}
+
+.screen-share-content img {
+    max-width: 100%;
+    max-height: 70vh;
+    display: block;
+}
+
+.screen-share-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.screen-share-overlay.hidden {
+    display: none;
+}
+
+.screen-share-loading {
+    font-size: 16px;
+}

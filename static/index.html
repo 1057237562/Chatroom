@@ -73,7 +73,21 @@
             <div class="voice-controls">
                 <button class="voice-btn" id="joinVoiceBtn" title="Join Voice">Join</button>
                 <button class="voice-btn mute-btn" id="voiceMuteBtn" title="Mute" style="display:none;">🎤</button>
+                <button class="voice-btn screen-btn" id="screenShareBtn" title="Share Screen" style="display:none;">📺</button>
                 <button class="voice-btn leave-btn" id="leaveVoiceBtn" title="Leave" style="display:none;">Leave</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="screen-share-container" id="screenShareContainer" style="display: none;">
+        <div class="screen-share-header">
+            <span class="screen-share-title" id="screenShareTitle">Screen Share</span>
+            <button class="screen-share-close" id="screenShareClose">×</button>
+        </div>
+        <div class="screen-share-content">
+            <img id="screenShareImage" alt="Screen Share" />
+            <div class="screen-share-overlay" id="screenShareOverlay">
+                <div class="screen-share-loading">Loading...</div>
             </div>
         </div>
     </div>
@@ -705,8 +719,9 @@
             const voiceWsUrl = `${wsProtocol}//${window.location.host}/ws/voice`;
             voiceClient = new VoiceChatClient(voiceWsUrl);
             
-            voiceClient.onUserListUpdate = (users) => {
-                updateVoiceParticipants(users);
+            voiceClient.onUserListUpdate = (users, screenSharer, screenActive) => {
+                updateVoiceParticipants(users, screenSharer);
+                updateScreenShareState(screenSharer, screenActive);
             };
             
             voiceClient.onConnected = (roomId) => {
@@ -717,6 +732,7 @@
             voiceClient.onDisconnected = () => {
                 updateVoiceStatus('disconnected', 'Disconnected');
                 showVoiceControls(false);
+                hideScreenShare();
             };
             
             voiceClient.onError = (error) => {
@@ -731,6 +747,14 @@
             voiceClient.onUserLeft = (username) => {
                 updateVoiceStatus('connected', `${username} left`);
             };
+            
+            voiceClient.onScreenStateChange = (sharer, active) => {
+                updateScreenShareState(sharer, active);
+            };
+            
+            voiceClient.onScreenFrame = (fromUser, frameData) => {
+                displayScreenFrame(fromUser, frameData);
+            };
         }
 
         function updateVoiceStatus(status, message) {
@@ -740,7 +764,7 @@
             statusEl.className = `voice-status ${status}`;
         }
 
-        function updateVoiceParticipants(users) {
+        function updateVoiceParticipants(users, screenSharer) {
             const participantsEl = document.getElementById('voiceParticipants');
             
             if (!users || users.length === 0) {
@@ -748,17 +772,22 @@
                 return;
             }
             
-            participantsEl.innerHTML = users.map(user => `
-                <div class="voice-participant ${user === currentUser ? 'self' : ''}">
+            participantsEl.innerHTML = users.map(user => {
+                const isSharing = user === screenSharer;
+                const sharingClass = isSharing ? 'sharing' : '';
+                const sharingIndicator = isSharing ? '<span class="sharing-indicator">📺</span>' : '';
+                return `
+                <div class="voice-participant ${sharingClass} ${user === currentUser ? 'self' : ''}">
                     <div class="participant-avatar">${user.charAt(0).toUpperCase()}</div>
-                    <span class="participant-name">${user}${user === currentUser ? ' (You)' : ''}</span>
+                    <span class="participant-name">${user}${user === currentUser ? ' (You)' : ''}${sharingIndicator}</span>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         function showVoiceControls(connected) {
             document.getElementById('joinVoiceBtn').style.display = connected ? 'none' : 'inline-block';
             document.getElementById('voiceMuteBtn').style.display = connected ? 'inline-block' : 'none';
+            document.getElementById('screenShareBtn').style.display = connected ? 'inline-block' : 'none';
             document.getElementById('leaveVoiceBtn').style.display = connected ? 'inline-block' : 'none';
         }
 
@@ -799,6 +828,70 @@
             }
         }
 
+        function updateScreenShareState(sharer, active) {
+            const screenBtn = document.getElementById('screenShareBtn');
+            
+            if (sharer && sharer !== currentUser) {
+                screenBtn.style.display = 'none';
+                screenBtn.classList.remove('active');
+            } else if (voiceClient && voiceClient.isConnected) {
+                screenBtn.style.display = 'inline-block';
+                if (active && sharer === currentUser) {
+                    screenBtn.classList.add('active');
+                } else {
+                    screenBtn.classList.remove('active');
+                }
+            }
+            
+            if (active && sharer) {
+                showScreenShareContainer(sharer);
+            } else {
+                hideScreenShare();
+            }
+        }
+
+        function showScreenShareContainer(sharer) {
+            const container = document.getElementById('screenShareContainer');
+            const title = document.getElementById('screenShareTitle');
+            title.textContent = `${sharer}'s Screen`;
+            container.style.display = 'flex';
+        }
+
+        function hideScreenShare() {
+            const container = document.getElementById('screenShareContainer');
+            container.style.display = 'none';
+            const overlay = document.getElementById('screenShareOverlay');
+            overlay.classList.remove('hidden');
+        }
+
+        function displayScreenFrame(fromUser, frameData) {
+            const img = document.getElementById('screenShareImage');
+            const overlay = document.getElementById('screenShareOverlay');
+            
+            img.src = frameData;
+            overlay.classList.add('hidden');
+            
+            showScreenShareContainer(fromUser);
+        }
+
+        async function toggleScreenShare() {
+            if (!voiceClient || !voiceClient.isConnected) {
+                return;
+            }
+            
+            const screenBtn = document.getElementById('screenShareBtn');
+            
+            if (voiceClient.isCurrentlyScreenSharing()) {
+                voiceClient.stopScreenShare();
+                screenBtn.classList.remove('active');
+            } else {
+                const success = await voiceClient.startScreenShare();
+                if (success) {
+                    screenBtn.classList.add('active');
+                }
+            }
+        }
+
         document.getElementById('voiceToggleBtn').addEventListener('click', function() {
             const panel = document.getElementById('voicePanel');
             panel.classList.toggle('active');
@@ -811,6 +904,12 @@
         document.getElementById('joinVoiceBtn').addEventListener('click', joinVoiceChat);
         document.getElementById('leaveVoiceBtn').addEventListener('click', leaveVoiceChat);
         document.getElementById('voiceMuteBtn').addEventListener('click', toggleVoiceMute);
+        document.getElementById('screenShareBtn').addEventListener('click', toggleScreenShare);
+        
+        document.getElementById('screenShareClose').addEventListener('click', function() {
+            const container = document.getElementById('screenShareContainer');
+            container.style.display = 'none';
+        });
 
         window.addEventListener('load', function() {
             requestNotificationPermission();

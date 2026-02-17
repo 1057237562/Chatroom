@@ -12,12 +12,24 @@ class VoiceChatClient {
         this.username = null;
         this.muted = false;
         
+        this.screenStream = null;
+        this.screenCanvas = null;
+        this.screenCtx = null;
+        this.isScreenSharing = false;
+        this.screenSharer = null;
+        this.frameRate = 10;
+        this.quality = 0.7;
+        this.maxWidth = 1280;
+        this.maxHeight = 720;
+        
         this.onUserListUpdate = null;
         this.onConnected = null;
         this.onDisconnected = null;
         this.onError = null;
         this.onUserJoined = null;
         this.onUserLeft = null;
+        this.onScreenStateChange = null;
+        this.onScreenFrame = null;
         
         this.sampleRate = 16000;
         this.bufferSize = 4096;
@@ -149,8 +161,10 @@ class VoiceChatClient {
         switch (data.type) {
             case 'user_list':
                 console.log('Voice chat users:', data.users);
+                this.screenSharer = data.screen_sharer || null;
+                this.isScreenSharing = this.screenSharer === this.username;
                 if (this.onUserListUpdate) {
-                    this.onUserListUpdate(data.users);
+                    this.onUserListUpdate(data.users, data.screen_sharer, data.screen_active);
                 }
                 break;
                 
@@ -169,6 +183,27 @@ class VoiceChatClient {
                 console.log('User left voice:', data.username);
                 if (this.onUserLeft) {
                     this.onUserLeft(data.username);
+                }
+                break;
+                
+            case 'screen_state':
+                this.screenSharer = data.sharer;
+                this.isScreenSharing = data.sharer === this.username;
+                if (this.onScreenStateChange) {
+                    this.onScreenStateChange(data.sharer, data.active);
+                }
+                break;
+                
+            case 'screen_frame':
+                if (this.onScreenFrame) {
+                    this.onScreenFrame(data.from_user, data.data);
+                }
+                break;
+                
+            case 'screen_error':
+                console.error('Screen share error:', data.message);
+                if (this.onError) {
+                    this.onError(data.message);
                 }
                 break;
                 
@@ -220,7 +255,148 @@ class VoiceChatClient {
         return this.muted;
     }
     
+    async startScreenShare(options = {}) {
+        if (this.isScreenSharing) {
+            return true;
+        }
+        
+        try {
+            const displayMediaOptions = {
+                video: {
+                    cursor: "always",
+                    displaySurface: options.displaySurface || "monitor"
+                },
+                audio: false
+            };
+            
+            this.screenStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+            
+            const videoTrack = this.screenStream.getVideoTracks()[0];
+            if (videoTrack) {
+                const settings = videoTrack.getSettings();
+                console.log('Screen share settings:', settings);
+            }
+            
+            this.screenCanvas = document.createElement('canvas');
+            this.screenCtx = this.screenCanvas.getContext('2d');
+            
+            const video = document.createElement('video');
+            video.srcObject = this.screenStream;
+            video.muted = true;
+            video.playsInline = true;
+            
+            await video.play();
+            
+            this._screenVideo = video;
+            
+            this.screenStream.getVideoTracks()[0].onended = () => {
+                this.stopScreenShare();
+            };
+            
+            this.ws.send(JSON.stringify({ type: 'screen_start' }));
+            this.isScreenSharing = true;
+            
+            this._startFrameCapture();
+            
+            console.log('Screen sharing started');
+            return true;
+            
+        } catch (error) {
+            console.error('Failed to start screen share:', error);
+            this.isScreenSharing = false;
+            return false;
+        }
+    }
+    
+    _startFrameCapture() {
+        if (!this._screenVideo || !this.screenCanvas || !this.screenCtx) {
+            return;
+        }
+        
+        const captureFrame = () => {
+            if (!this.isScreenSharing || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                return;
+            }
+            
+            const video = this._screenVideo;
+            const canvas = this.screenCanvas;
+            const ctx = this.screenCtx;
+            
+            let width = video.videoWidth;
+            let height = video.videoHeight;
+            
+            if (width > this.maxWidth) {
+                const ratio = this.maxWidth / width;
+                width = this.maxWidth;
+                height = Math.floor(height * ratio);
+            }
+            if (height > this.maxHeight) {
+                const ratio = this.maxHeight / height;
+                height = this.maxHeight;
+                width = Math.floor(width * ratio);
+            }
+            
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+            }
+            
+            ctx.drawImage(video, 0, 0, width, height);
+            
+            const dataUrl = canvas.toDataURL('image/jpeg', this.quality);
+            
+            this.ws.send(JSON.stringify({
+                type: 'screen_frame',
+                data: dataUrl
+            }));
+            
+            this._frameTimeout = setTimeout(captureFrame, 1000 / this.frameRate);
+        };
+        
+        captureFrame();
+    }
+    
+    stopScreenShare() {
+        if (!this.isScreenSharing) {
+            return;
+        }
+        
+        if (this._frameTimeout) {
+            clearTimeout(this._frameTimeout);
+            this._frameTimeout = null;
+        }
+        
+        if (this.screenStream) {
+            this.screenStream.getTracks().forEach(track => track.stop());
+            this.screenStream = null;
+        }
+        
+        if (this._screenVideo) {
+            this._screenVideo.srcObject = null;
+            this._screenVideo = null;
+        }
+        
+        this.screenCanvas = null;
+        this.screenCtx = null;
+        
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: 'screen_stop' }));
+        }
+        
+        this.isScreenSharing = false;
+        console.log('Screen sharing stopped');
+    }
+    
+    isCurrentlyScreenSharing() {
+        return this.isScreenSharing;
+    }
+    
+    getScreenSharer() {
+        return this.screenSharer;
+    }
+    
     disconnect() {
+        this.stopScreenShare();
         this._cleanup();
         if (this.ws) {
             this.ws.close();
