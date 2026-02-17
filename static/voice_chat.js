@@ -135,9 +135,11 @@ class VoiceChatClient {
             return;
         }
         
+        const uint8Data = new Uint8Array(pcmData.buffer);
+        
         const message = {
             type: 'audio',
-            data: Array.from(pcmData)
+            data: Array.from(uint8Data)
         };
         
         this.ws.send(JSON.stringify(message));
@@ -153,7 +155,7 @@ class VoiceChatClient {
                 break;
                 
             case 'audio':
-                this._playAudio(data.from_user, new Int16Array(data.data));
+                this._playAudio(data.from_user, data.data);
                 break;
                 
             case 'user_joined':
@@ -179,7 +181,7 @@ class VoiceChatClient {
         }
     }
     
-    _playAudio(fromUser, pcmData) {
+    _playAudio(fromUser, uint8Data) {
         if (!this.audioContext) {
             return;
         }
@@ -188,7 +190,8 @@ class VoiceChatClient {
             this.audioContext.resume();
         }
         
-        const floatData = this._16BitPCMToFloat(pcmData);
+        const int16Data = new Int16Array(new Uint8Array(uint8Data).buffer);
+        const floatData = this._16BitPCMToFloat(int16Data);
         
         const audioBuffer = this.audioContext.createBuffer(
             1,

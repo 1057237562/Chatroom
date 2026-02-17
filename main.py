@@ -143,7 +143,7 @@ async def voice_websocket_endpoint(websocket: WebSocket):
                     if username and room:
                         audio_data = message.get("data", [])
                         if audio_data:
-                            await room.broadcast_audio(username, bytes(audio_data))
+                            await room.broadcast_audio(username, audio_data)
                             
             except json.JSONDecodeError:
                 logger.warning("Invalid JSON received on voice endpoint")

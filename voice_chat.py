@@ -49,11 +49,11 @@ class VoiceRoom:
             if username in self.participants:
                 del self.participants[username]
     
-    async def broadcast_audio(self, sender: str, audio_data: bytes) -> None:
+    async def broadcast_audio(self, sender: str, audio_data: list) -> None:
         message = {
             "type": "audio",
             "from_user": sender,
-            "data": list(audio_data)
+            "data": audio_data
         }
         await self._broadcast(message, exclude=sender)
     
