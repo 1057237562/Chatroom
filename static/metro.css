@@ -54,8 +54,11 @@ body {
     display: flex;
     flex-direction: column;
     padding: 16px;
+    padding-bottom: 0;
     box-sizing: border-box;
     background: #f0f0f0;
+    height: 100vh;
+    overflow: hidden;
 }
 
 .tile {
@@ -63,6 +66,23 @@ body {
     padding: 16px;
     margin-bottom: 16px;
     border: 1px solid var(--light-gray);
+}
+
+#chatTile {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    margin-bottom: 0;
+}
+
+#chatTile .chat-header {
+    flex-shrink: 0;
+}
+
+#chatTile .chat-messages {
+    flex: 1;
+    min-height: 0;
 }
 
 .tile-primary {
@@ -87,10 +107,10 @@ body {
 #messages {
     flex: 1;
     overflow-y: auto;
-    margin-bottom: 16px;
     background: var(--light-color);
     padding: 16px;
     border: 1px solid var(--light-gray);
+    min-height: 0;
 }
 
 #inputArea {
@@ -98,8 +118,14 @@ body {
     flex-direction: column;
     background: var(--light-color);
     padding: 12px;
-    border-top: 1px solid var(--light-gray);
+    border: 1px solid var(--light-gray);
     gap: 8px;
+    flex-shrink: 0;
+    margin-top: 16px;
+}
+
+#inputArea.tile-secondary {
+    background: var(--light-color);
 }
 
 .textarea-wrapper {
@@ -194,6 +220,8 @@ button {
     flex: 1;
     display: flex;
     flex-direction: column;
+    height: 100%;
+    position: relative;
 }
 
 .chat-header {
@@ -213,10 +241,10 @@ button {
 .chat-messages {
     flex: 1;
     overflow-y: auto;
-    margin-bottom: 16px;
     background: var(--light-color);
     padding: 16px;
     border: 1px solid var(--light-gray);
+    min-height: 0;
 }
 
 #joinArea {
@@ -336,6 +364,8 @@ button {
     
     .main {
         padding: 12px;
+        padding-bottom: 0;
+        height: calc(100vh - 200px);
     }
     
     #inputArea {
@@ -373,6 +403,10 @@ button {
 @media (max-width: 480px) {
     .sidebar {
         height: 150px;
+    }
+    
+    .main {
+        height: calc(100vh - 150px);
     }
     
     .tile, #messages, .chat-messages {
@@ -509,6 +543,13 @@ button {
     position: relative;
 }
 
+.new-messages-divider {
+    text-align: center;
+    margin: 16px 0 16px 0;
+    padding: 8px 0;
+    position: relative;
+}
+
 .divider-text {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -530,6 +571,17 @@ button {
     right: 0;
     height: 1px;
     background: linear-gradient(to right, transparent, #ddd, transparent);
+    z-index: 1;
+}
+
+.new-messages-divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, #a5d6a7, transparent);
     z-index: 1;
 }
 

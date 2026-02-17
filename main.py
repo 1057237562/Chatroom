@@ -32,7 +32,6 @@ AGENT_NAME = "AI"
 ai_enabled = True  # Will be set based on OpenAI API key availability
 
 # Initialize database on startup
-@app.on_event("startup")
 async def startup_event():
     """Initialize database and AI agent on application startup."""
     global ai_agent, ai_enabled
@@ -512,4 +511,5 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     
+    asyncio.run(startup_event())
     uvicorn.run("main:app", host=args.host, port=args.port, reload=True)
