@@ -288,6 +288,116 @@ async def get_online_users():
             "count": 0
         }
 
+@app.get("/api/commands")
+async def get_commands(query: str = "", match_type: str = "prefix"):
+    """
+    Get available commands with optional filtering.
+    
+    Query Parameters:
+        - query: Search query for command matching (optional)
+        - match_type: Matching algorithm - "prefix", "fuzzy", or "all" (default: "prefix")
+    
+    Returns:
+        {
+            "success": true,
+            "commands": [
+                {
+                    "name": "help",
+                    "description": "...",
+                    "usage": "/help",
+                    "match_score": 1.0
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        commands = CommandFactory.get_all_commands()
+        results = []
+        
+        query = query.lower().strip()
+        
+        if match_type == "all" or not query:
+            for name, cmd in commands.items():
+                results.append({
+                    "name": name,
+                    "description": cmd.description,
+                    "usage": cmd.usage,
+                    "match_score": 1.0
+                })
+        else:
+            for name, cmd in commands.items():
+                score = 0.0
+                
+                if match_type == "prefix":
+                    if name.startswith(query):
+                        score = 1.0 - (len(query) / (len(name) + 1))
+                    elif query in name:
+                        score = 0.5 - (len(query) / (len(name) + 1)) * 0.3
+                elif match_type == "fuzzy":
+                    score = _fuzzy_match(query, name)
+                
+                if score > 0:
+                    results.append({
+                        "name": name,
+                        "description": cmd.description,
+                        "usage": cmd.usage,
+                        "match_score": round(score, 3)
+                    })
+        
+        results.sort(key=lambda x: (-x["match_score"], x["name"]))
+        
+        return {
+            "success": True,
+            "commands": results,
+            "query": query,
+            "match_type": match_type
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving commands: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "commands": []
+        }
+
+def _fuzzy_match(pattern: str, text: str) -> float:
+    """
+    Fuzzy matching algorithm with scoring.
+    
+    Returns a score between 0 and 1, where higher is better match.
+    """
+    if not pattern:
+        return 1.0
+    
+    text = text.lower()
+    pattern = pattern.lower()
+    
+    if pattern == text:
+        return 1.0
+    
+    if pattern in text:
+        return 0.8 - (len(text) - len(pattern)) / (len(text) + 1) * 0.2
+    
+    pattern_idx = 0
+    consecutive_bonus = 0
+    last_match_idx = -2
+    
+    for i, char in enumerate(text):
+        if pattern_idx < len(pattern) and char == pattern[pattern_idx]:
+            if i == last_match_idx + 1:
+                consecutive_bonus += 0.1
+            last_match_idx = i
+            pattern_idx += 1
+    
+    if pattern_idx < len(pattern):
+        return 0.0
+    
+    base_score = len(pattern) / len(text)
+    position_bonus = 0.2 if text.startswith(pattern[0]) else 0
+    
+    return min(1.0, base_score * 0.5 + position_bonus + consecutive_bonus)
+
 @app.post("/upload")
 async def upload_image(file: UploadFile):
     """Upload an image file with security validation."""
