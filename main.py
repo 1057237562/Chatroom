@@ -31,7 +31,6 @@ AGENT_NAME = "AI"
 ai_enabled = True  # Will be set based on OpenAI API key availability
 
 # Initialize database on startup
-@app.on_event("startup")
 async def startup_event():
     """Initialize database and AI agent on application startup."""
     global ai_agent, ai_enabled
@@ -496,4 +495,5 @@ async def _send_ai_private_message(target_username: str, message: str):
         logger.error(f"Error sending AI private message: {e}")
 
 if __name__ == "__main__":
+    asyncio.run(startup_event())
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
