@@ -509,6 +509,13 @@ button {
     position: relative;
 }
 
+.new-messages-divider {
+    text-align: center;
+    margin: 16px 0 16px 0;
+    padding: 8px 0;
+    position: relative;
+}
+
 .divider-text {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -530,6 +537,17 @@ button {
     right: 0;
     height: 1px;
     background: linear-gradient(to right, transparent, #ddd, transparent);
+    z-index: 1;
+}
+
+.new-messages-divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, #a5d6a7, transparent);
     z-index: 1;
 }
 

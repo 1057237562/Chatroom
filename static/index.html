@@ -134,17 +134,11 @@
                     // Add "new messages" divider if this is the first new message after history
                     if (hasHistoryLoaded && !firstNewMessageSent) {
                         const newMessageDivider = document.createElement('div');
-                        newMessageDivider.className = 'history-divider';
+                        newMessageDivider.className = 'new-messages-divider';
                         newMessageDivider.innerHTML = '<span class="divider-text" style="background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);">New Messages</span>';
                         newMessageDivider.style.opacity = '0';
                         newMessageDivider.style.transform = 'translateY(-10px)';
-                        // Insert before the history divider
-                        const historyDivider = messagesDiv.querySelector('.history-divider');
-                        if (historyDivider) {
-                            messagesDiv.insertBefore(newMessageDivider, historyDivider);
-                        } else {
-                            messagesDiv.appendChild(newMessageDivider);
-                        }
+                        messagesDiv.appendChild(newMessageDivider);
                         
                         // Animate new message divider
                         setTimeout(() => {
@@ -205,14 +199,7 @@
                     msgContent.textContent = messageText;
                     msg.appendChild(msgContent);
                     
-                    // Insert new message before history divider if history is loaded
-                    const historyDivider = messagesDiv.querySelector('.history-divider');
-                    if (historyDivider && hasHistoryLoaded) {
-                        messagesDiv.insertBefore(msg, historyDivider);
-                    } else {
-                        messagesDiv.appendChild(msg);
-                    }
-                    
+                    messagesDiv.appendChild(msg);
                     scrollToBottom(messagesDiv, true);
                 } else if (data.type === 'error') {
                     alert(data.text);
@@ -220,15 +207,7 @@
                     const info = document.createElement('div');
                     info.className = 'message-item info-item';
                     info.textContent = data.text;
-                    
-                    // Insert info message before history divider if history is loaded
-                    const historyDivider = messagesDiv.querySelector('.history-divider');
-                    if (historyDivider && hasHistoryLoaded) {
-                        messagesDiv.insertBefore(info, historyDivider);
-                    } else {
-                        messagesDiv.appendChild(info);
-                    }
-                    
+                    messagesDiv.appendChild(info);
                     scrollToBottom(messagesDiv, true);
                 }
             } catch (e) {
@@ -497,27 +476,10 @@
                         }, 150 + (index * 50));
                     });
                     
-                    // Add history divider at the bottom after all messages
+                    // Scroll to bottom after all animations complete
                     setTimeout(() => {
-                        const historyDivider = document.createElement('div');
-                        historyDivider.className = 'history-divider';
-                        historyDivider.innerHTML = '<span class="divider-text">History Above</span>';
-                        historyDivider.style.opacity = '0';
-                        historyDivider.style.transform = 'translateY(-10px)';
-                        messagesDiv.appendChild(historyDivider);
-                        
-                        // Animate divider appearance
-                        setTimeout(() => {
-                            historyDivider.style.transition = 'all 0.5s ease';
-                            historyDivider.style.opacity = '1';
-                            historyDivider.style.transform = 'translateY(0)';
-                        }, 100);
-                        
-                        // Scroll to bottom after all animations complete
-                        setTimeout(() => {
-                            scrollToBottom(messagesDiv, true);
-                            hasHistoryLoaded = true;
-                        }, 500);
+                        scrollToBottom(messagesDiv, true);
+                        hasHistoryLoaded = true;
                     }, 150 + (reversedMessages.length * 50));
                 } else {
                     hasHistoryLoaded = true;
