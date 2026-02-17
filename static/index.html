@@ -55,7 +55,7 @@
     </div>
     <script>
         // Initialize WebSocket connection
-        const ws = new WebSocket('ws://localhost:8000/ws');
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
         let wsReady = false;
         
         // Get DOM elements

@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 import asyncio
 import logging
+import argparse
 from command import CommandFactory, CommandContext
 from command.factory import register_builtin_commands
 from db import init_db, save_message
@@ -496,4 +497,19 @@ async def _send_ai_private_message(target_username: str, message: str):
         logger.error(f"Error sending AI private message: {e}")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    parser = argparse.ArgumentParser(description="FastAPI Chatroom Server")
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Host IP to bind to (default: 0.0.0.0)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to bind to (default: 8000)"
+    )
+    args = parser.parse_args()
+    
+    uvicorn.run("main:app", host=args.host, port=args.port, reload=True)
