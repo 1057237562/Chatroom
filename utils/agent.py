@@ -37,11 +37,14 @@ class AIAgent:
             config: AgentConfig instance with OpenAI settings
         """
         self.config = config
-        self.client = AsyncOpenAI(api_key=config.openai_api_key)
+        self.client = AsyncOpenAI(
+            api_key=config.openai_api_key,
+            base_url=config.base_url
+        )
         self.conversation_history: list[dict[str, str]] = []
         self.current_users: list[str] = []
         self.message_cache: dict[str, str] = {}
-        logger.info(f"AIAgent initialized with model: {config.model}")
+        logger.info(f"AIAgent initialized with model: {config.model}, base_url: {config.base_url}")
     
     async def process_message(
         self,
@@ -345,7 +348,7 @@ class AIAgent:
                 ),
                 timeout=5
             )
-            logger.info("Health check passed")
+            logger.info(f"Health check passed with return: {response}")
             return True
         
         except Exception as e:

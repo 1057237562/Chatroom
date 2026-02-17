@@ -11,13 +11,14 @@ class AgentConfig:
     """Configuration for AI Agent."""
     
     openai_api_key: str
-    model: str = "gpt-3.5-turbo"
+    model: str = "glm-4-flash"
     agent_name: str = "AI"
     temperature: float = 0.7
     max_tokens: int = 500
     timeout: int = 30
     retry_attempts: int = 3
     retry_delay: float = 1.0
+    base_url: str = "https://open.bigmodel.cn/api/paas/v4/"
 
 
 @dataclass

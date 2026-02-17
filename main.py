@@ -7,11 +7,14 @@ import os
 from datetime import datetime
 import asyncio
 import logging
+from dotenv import load_dotenv
 from command import CommandFactory, CommandContext
 from command.factory import register_builtin_commands
 from db import init_db, save_message
 from utils import AIAgent, AgentConfig, AgentMessage, AgentCommand
 from voip import WebRTCManager
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,11 +53,12 @@ async def startup_event():
                     config = AgentConfig(
                         openai_api_key=api_key,
                         agent_name=AGENT_NAME,
-                        model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
+                        model=os.getenv("OPENAI_MODEL", "glm-4.7-flash"),
                         temperature=float(os.getenv("OPENAI_TEMPERATURE", "0.7")),
                         max_tokens=int(os.getenv("OPENAI_MAX_TOKENS", "500")),
                         timeout=int(os.getenv("OPENAI_TIMEOUT", "30")),
-                        retry_attempts=int(os.getenv("OPENAI_RETRY_ATTEMPTS", "3"))
+                        retry_attempts=int(os.getenv("OPENAI_RETRY_ATTEMPTS", "3")),
+                        base_url=os.getenv("OPENAI_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/")
                     )
                     ai_agent = AIAgent(config)
                     

@@ -46,7 +46,9 @@ def register_builtin_commands():
     from command.commands.help import HelpCommand
     from command.commands.whisper import WhisperCommand
     from command.commands.history import HistoryCommand
+    from command.commands.ai import AICommand
     
     CommandFactory.register(HelpCommand)
     CommandFactory.register(WhisperCommand)
     CommandFactory.register(HistoryCommand)
+    CommandFactory.register(AICommand)

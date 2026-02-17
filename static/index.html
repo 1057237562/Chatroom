@@ -509,8 +509,13 @@
             const username = this.value.trim();
             if (username && currentUser !== username && wsReady) {
                 currentUser = username;
-                saveUsername(username); // Save to localStorage
+                saveUsername(username);
                 ws.send(username);
+                if (voipClient && voipClient.ws && voipClient.ws.readyState === WebSocket.OPEN) {
+                    voipClient.ws.send(JSON.stringify({ type: 'register', username }));
+                } else if (voipClient) {
+                    voipClient.connect(username).catch(console.error);
+                }
             }
         });
 
@@ -569,8 +574,8 @@
                 usernameInput.value = savedUsername;
                 currentUser = savedUsername;
                 ws.send(savedUsername);
-                initVOIP();
             }
+            initVOIP();
         });
 
         // Load history from API
@@ -765,6 +770,7 @@
                 alert(`${fromUser} is currently in another call`);
             };
             
+            // Only connect if username is available, otherwise wait for username input
             if (currentUser) {
                 voipClient.connect(currentUser).catch(console.error);
             }
@@ -852,6 +858,21 @@
             if (!voipClient) {
                 alert('VOIP not initialized');
                 return;
+            }
+            
+            if (!currentUser) {
+                alert('Please enter your username first');
+                return;
+            }
+            
+            if (!voipClient.ws || voipClient.ws.readyState !== WebSocket.OPEN) {
+                try {
+                    await voipClient.connect(currentUser);
+                } catch (error) {
+                    console.error('Failed to connect VOIP:', error);
+                    alert('Failed to connect VOIP. Please try again.');
+                    return;
+                }
             }
             
             try {

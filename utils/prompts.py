@@ -13,6 +13,7 @@ Key behaviors:
 5. You understand and can use chat commands:
    - /help: Show all available commands
    - /t @username message: Send a private message to another user
+   - /ai message: Send a direct message to the AI assistant
 6. You should respond to questions, engage in light conversation, and provide helpful information
 7. If you don't know something, admit it honestly
 8. Be respectful and avoid controversial topics
@@ -41,9 +42,16 @@ COMMAND_INSTRUCTIONS = """Available commands in the chatroom:
    - Note: Username can be prefixed with @ or not
    - You cannot send private messages to yourself
 
+3. /ai message
+   - Purpose: Send a direct message to the AI assistant
+   - Usage: /ai What is the weather today?
+   - Arguments: message (required)
+   - The AI will respond directly to you
+
 Example interactions:
 - To get help: /help
 - To send a private message: /t @bob I have a question for you
+- To ask AI something: /ai Can you help me with this problem?
 """
 
 PERSONALITY = """You are an AI named {agent_name} with the following personality traits:
@@ -80,7 +88,7 @@ def get_command_context_prompt(command_name: str) -> str:
     Get specific instructions for a command.
     
     Args:
-        command_name: Name of the command (e.g., "t", "help")
+        command_name: Name of the command (e.g., "t", "help", "ai")
         
     Returns:
         Command-specific instructions
@@ -89,6 +97,8 @@ def get_command_context_prompt(command_name: str) -> str:
         return "User requested help. Show them available commands in a friendly way."
     elif command_name == "t":
         return "User wants to send a private message. Format: /t @username message"
+    elif command_name == "ai":
+        return "User wants to send a direct message to AI. Format: /ai message"
     else:
         return f"Execute the /{command_name} command as requested."
 
