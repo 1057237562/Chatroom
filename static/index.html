@@ -55,7 +55,7 @@
     </div>
     <script>
         // Initialize WebSocket connection
-        const ws = new WebSocket('ws://localhost:8000/ws');
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
         let wsReady = false;
         
         // Get DOM elements
@@ -77,6 +77,50 @@
         const historyPageSize = 50;
         let hasHistoryLoaded = false;
         let firstNewMessageSent = false;
+        let notificationEnabled = false;
+
+        function requestNotificationPermission() {
+            if (!('Notification' in window)) {
+                console.log('This browser does not support notifications');
+                return;
+            }
+            
+            if (Notification.permission === 'granted') {
+                notificationEnabled = true;
+                return;
+            }
+            
+            if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        notificationEnabled = true;
+                        console.log('Notification permission granted');
+                    }
+                });
+            }
+        }
+
+        function showNotification(username, message) {
+            if (!notificationEnabled || document.hasFocus()) {
+                return;
+            }
+            
+            const notification = new Notification(`${username}`, {
+                body: message,
+                icon: '/static/favicon.ico',
+                tag: 'chatroom-message',
+                requireInteraction: false
+            });
+            
+            notification.onclick = function() {
+                window.focus();
+                notification.close();
+            };
+            
+            setTimeout(() => {
+                notification.close();
+            }, 5000);
+        }
         
         function scrollToBottom(element, smooth = true) {
             if (!element) return;
@@ -201,6 +245,10 @@
                     
                     messagesDiv.appendChild(msg);
                     scrollToBottom(messagesDiv, true);
+                    
+                    if (username && messageText && !isOwn) {
+                        showNotification(username, messageText);
+                    }
                 } else if (data.type === 'error') {
                     alert(data.text);
                 } else if (data.type === 'info') {
@@ -492,6 +540,7 @@
 
         // Initialize page
         window.addEventListener('load', function() {
+            requestNotificationPermission();
             const savedUsername = loadUsername();
             if (savedUsername) {
                 usernameInput.value = savedUsername;
