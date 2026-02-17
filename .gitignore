@@ -79,8 +79,10 @@ Thumbs.db
 *.db
 *.log
 *.tmp
-cert.pem
-key.pem
+
+# SSL certificates (generate with generate_cert.py)
+*.pem
+!venv/**/*.pem
 
 # Uploads (optional - uncomment if you don't want to track uploads)
 # static/uploads/
