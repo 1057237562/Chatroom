@@ -13,7 +13,7 @@ from command import CommandFactory, CommandContext
 from command.factory import register_builtin_commands
 from db import init_db, save_message
 from utils import AIAgent, AgentConfig, AgentMessage, AgentCommand
-from voip import WebRTCManager
+from voice_chat import VoiceChatManager
 
 load_dotenv()
 
@@ -29,7 +29,7 @@ register_builtin_commands()
 user_map: dict[WebSocket, str] = {}
 current_users: set[str] = set()
 
-voip_manager = WebRTCManager()
+voice_manager = VoiceChatManager()
 
 # AI Agent instance
 ai_agent: AIAgent | None = None
@@ -115,35 +115,47 @@ async def websocket_endpoint(websocket: WebSocket):
         if websocket in user_map:
             username = user_map.pop(websocket)
             current_users.discard(username)
-            voip_manager.unregister_connection(username)
             await broadcast_user_list()
         print("Client disconnected")
 
-@app.websocket("/ws/voip")
-async def voip_websocket_endpoint(websocket: WebSocket):
+@app.websocket("/ws/voice")
+async def voice_websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     username = None
+    room = None
+    
     try:
         while True:
             data = await websocket.receive_text()
             try:
                 message = json.loads(data)
-                if message.get("type") == "register":
+                msg_type = message.get("type")
+                
+                if msg_type == "join":
                     username = message.get("username")
+                    room_id = message.get("room_id", "default")
+                    
                     if username:
-                        voip_manager.register_connection(username, websocket)
-                        await websocket.send_text(json.dumps({
-                            "type": "registered",
-                            "username": username
-                        }))
-                else:
-                    await voip_manager.handle_message(websocket, username, message)
+                        room = await voice_manager.join_room(room_id, username, websocket)
+                        logger.info(f"User {username} joined voice room {room_id}")
+                        
+                elif msg_type == "audio":
+                    if username and room:
+                        audio_data = message.get("data", [])
+                        if audio_data:
+                            await room.broadcast_audio(username, bytes(audio_data))
+                            
             except json.JSONDecodeError:
-                logger.warning("Invalid JSON received on VOIP endpoint")
+                logger.warning("Invalid JSON received on voice endpoint")
+                
     except WebSocketDisconnect:
         if username:
-            voip_manager.unregister_connection(username)
-        logger.info(f"VOIP client disconnected: {username}")
+            await voice_manager.leave_room(username)
+            logger.info(f"Voice client disconnected: {username}")
+    except Exception as e:
+        logger.error(f"Voice WebSocket error: {e}")
+        if username:
+            await voice_manager.leave_room(username)
 
 @app.get("/api/history")
 async def get_chat_history(
