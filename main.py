@@ -565,7 +565,7 @@ if __name__ == "__main__":
     import socket
     
     HTTP_PORT = 80
-    HTTPS_PORT = 8000
+    HTTPS_PORT = 443
     
     def run_http_redirect():
         redirect_app = FastAPI()

@@ -86,7 +86,17 @@
         <div class="screen-share-resize-handle se" data-resize="se"></div>
         <div class="screen-share-header">
             <span class="screen-share-title" id="screenShareTitle">Screen Share</span>
-            <button class="screen-share-close" id="screenShareClose">×</button>
+            <div class="screen-share-header-actions">
+                <button class="screen-share-fullscreen-btn" id="screenShareFullscreenBtn" title="Fullscreen">
+                    <svg class="fullscreen-icon" viewBox="0 0 24 24" width="16" height="16">
+                        <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" fill="currentColor"/>
+                    </svg>
+                    <svg class="exit-fullscreen-icon" viewBox="0 0 24 24" width="16" height="16" style="display:none;">
+                        <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" fill="currentColor"/>
+                    </svg>
+                </button>
+                <button class="screen-share-close" id="screenShareClose">×</button>
+            </div>
         </div>
         <div class="screen-share-content">
             <img id="screenShareImage" alt="Screen Share" />
@@ -914,7 +924,50 @@
         document.getElementById('screenShareClose').addEventListener('click', function() {
             const container = document.getElementById('screenShareContainer');
             container.style.display = 'none';
+            if (container.classList.contains('fullscreen')) {
+                container.classList.remove('fullscreen');
+            }
         });
+        
+        (function initScreenShareFullscreen() {
+            const container = document.getElementById('screenShareContainer');
+            const fullscreenBtn = document.getElementById('screenShareFullscreenBtn');
+            let savedState = null;
+            
+            fullscreenBtn.addEventListener('click', function() {
+                if (container.classList.contains('fullscreen')) {
+                    container.classList.remove('fullscreen');
+                    if (savedState) {
+                        container.style.width = savedState.width;
+                        container.style.height = savedState.height;
+                        container.style.left = savedState.left;
+                        container.style.top = savedState.top;
+                        savedState = null;
+                    }
+                } else {
+                    savedState = {
+                        width: container.style.width || container.offsetWidth + 'px',
+                        height: container.style.height || container.offsetHeight + 'px',
+                        left: container.style.left || container.offsetLeft + 'px',
+                        top: container.style.top || container.offsetTop + 'px'
+                    };
+                    container.classList.add('fullscreen');
+                }
+            });
+            
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && container.classList.contains('fullscreen')) {
+                    container.classList.remove('fullscreen');
+                    if (savedState) {
+                        container.style.width = savedState.width;
+                        container.style.height = savedState.height;
+                        container.style.left = savedState.left;
+                        container.style.top = savedState.top;
+                        savedState = null;
+                    }
+                }
+            });
+        })();
         
         (function initScreenShareDrag() {
             const container = document.getElementById('screenShareContainer');
@@ -923,7 +976,9 @@
             let startX, startY, initialX, initialY;
             
             header.addEventListener('mousedown', function(e) {
-                if (e.target.classList.contains('screen-share-close')) {
+                if (e.target.classList.contains('screen-share-close') || 
+                    e.target.closest('.screen-share-fullscreen-btn') ||
+                    container.classList.contains('fullscreen')) {
                     return;
                 }
                 isDragging = true;
@@ -980,7 +1035,11 @@
             
             handles.forEach(handle => {
                 handle.addEventListener('mousedown', function(e) {
+                    if (container.classList.contains('fullscreen')) {
+                        return;
+                    }
                     isResizing = true;
+                    container.classList.add('resizing');
                     currentHandle = this.dataset.resize;
                     
                     startX = e.clientX;
@@ -1044,6 +1103,7 @@
             document.addEventListener('mouseup', function() {
                 isResizing = false;
                 currentHandle = null;
+                container.classList.remove('resizing');
             });
         })();
 
