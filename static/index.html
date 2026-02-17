@@ -257,6 +257,34 @@
                     info.textContent = data.text;
                     messagesDiv.appendChild(info);
                     scrollToBottom(messagesDiv, true);
+                } else if (data.type === 'private') {
+                    const msg = document.createElement('div');
+                    msg.className = 'message-item private-item';
+                    
+                    const msgMeta = document.createElement('div');
+                    msgMeta.className = 'msg-meta';
+                    
+                    const msgUser = document.createElement('span');
+                    msgUser.className = 'msg-user';
+                    msgUser.textContent = `[Private from ${data.from}]`;
+                    msgMeta.appendChild(msgUser);
+                    
+                    const msgTime = document.createElement('span');
+                    msgTime.className = 'msg-time';
+                    msgTime.textContent = formatTime();
+                    msgMeta.appendChild(msgTime);
+                    
+                    msg.appendChild(msgMeta);
+                    
+                    const msgContent = document.createElement('div');
+                    msgContent.className = 'msg-text';
+                    msgContent.textContent = data.text;
+                    msg.appendChild(msgContent);
+                    
+                    messagesDiv.appendChild(msg);
+                    scrollToBottom(messagesDiv, true);
+                    
+                    showNotification(`[Private] ${data.from}`, data.text);
                 }
             } catch (e) {
                 console.error('Invalid message', event.data);

@@ -309,6 +309,15 @@ button {
     color: #666;
 }
 
+.message-item.private-item {
+    background: #f3e5f5;
+    border-left-color: #9c27b0;
+}
+
+.message-item.private-item .msg-user {
+    color: #7b1fa2;
+}
+
 .msg-meta {
     display: flex;
     align-items: center;
