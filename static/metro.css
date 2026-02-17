@@ -307,6 +307,7 @@ button {
     border-left-color: var(--warning-color);
     font-style: italic;
     color: #666;
+    white-space: pre-wrap;
 }
 
 .message-item.private-item {
