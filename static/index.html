@@ -77,6 +77,18 @@
         const historyPageSize = 50;
         let hasHistoryLoaded = false;
         let firstNewMessageSent = false;
+        
+        function scrollToBottom(element, smooth = true) {
+            if (!element) return;
+            if (smooth && 'scrollBehavior' in document.documentElement.style) {
+                element.scrollTo({
+                    top: element.scrollHeight,
+                    behavior: 'smooth'
+                });
+            } else {
+                element.scrollTop = element.scrollHeight;
+            }
+        }
 
         // localStorage functions
         function saveUsername(username) {
@@ -201,7 +213,7 @@
                         messagesDiv.appendChild(msg);
                     }
                     
-                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    scrollToBottom(messagesDiv, true);
                 } else if (data.type === 'error') {
                     alert(data.text);
                 } else if (data.type === 'info') {
@@ -217,7 +229,7 @@
                         messagesDiv.appendChild(info);
                     }
                     
-                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    scrollToBottom(messagesDiv, true);
                 }
             } catch (e) {
                 console.error('Invalid message', event.data);
@@ -331,7 +343,7 @@
                     
                     imgContainer.appendChild(img);
                     messagesDiv.appendChild(imgContainer);
-                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    scrollToBottom(messagesDiv, true);
                 }
                 uploadStatus.textContent = '';
                 fileInput.value = ''; // Clear the file input
@@ -503,7 +515,7 @@
                         
                         // Scroll to bottom after all animations complete
                         setTimeout(() => {
-                            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                            scrollToBottom(messagesDiv, true);
                             hasHistoryLoaded = true;
                         }, 500);
                     }, 150 + (reversedMessages.length * 50));

@@ -563,3 +563,51 @@ button {
     color: #555;
     font-style: italic;
 }
+
+/* Custom Scrollbar Styles */
+.chat-messages::-webkit-scrollbar,
+#messages::-webkit-scrollbar,
+.history-container::-webkit-scrollbar,
+.user-list-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.chat-messages::-webkit-scrollbar-track,
+#messages::-webkit-scrollbar-track,
+.history-container::-webkit-scrollbar-track,
+.user-list-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb,
+#messages::-webkit-scrollbar-thumb,
+.history-container::-webkit-scrollbar-thumb,
+.user-list-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--primary-color), var(--secondary-color));
+    border-radius: 4px;
+    transition: background 0.3s ease;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover,
+#messages::-webkit-scrollbar-thumb:hover,
+.history-container::-webkit-scrollbar-thumb:hover,
+.user-list-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #005a9e, #0097a7);
+}
+
+.chat-messages::-webkit-scrollbar-thumb:active,
+#messages::-webkit-scrollbar-thumb:active,
+.history-container::-webkit-scrollbar-thumb:active,
+.user-list-container::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(180deg, #004578, #00796b);
+}
+
+/* Firefox scrollbar styles */
+.chat-messages,
+#messages,
+.history-container,
+.user-list-container {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) #f1f1f1;
+}
