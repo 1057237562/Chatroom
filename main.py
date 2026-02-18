@@ -673,9 +673,25 @@ async def _send_ai_private_message(target_username: str, message: str):
 if __name__ == "__main__":
     import threading
     import socket
+    import argparse
     
-    HTTP_PORT = 80
-    HTTPS_PORT = 443
+    parser = argparse.ArgumentParser(description="FastAPI Chatroom Server")
+    parser.add_argument(
+        "--http-port",
+        type=int,
+        default=80,
+        help="HTTP port for redirect server (default: 80)"
+    )
+    parser.add_argument(
+        "--https-port",
+        type=int,
+        default=443,
+        help="HTTPS port for main server (default: 443)"
+    )
+    args = parser.parse_args()
+    
+    HTTP_PORT = args.http_port
+    HTTPS_PORT = args.https_port
     
     def run_http_redirect():
         redirect_app = FastAPI()

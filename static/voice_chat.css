@@ -167,6 +167,9 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
+    min-width: 80px;
+    max-width: 120px;
+    flex-shrink: 0;
 }
 
 .voice-btn:first-child {
@@ -227,6 +230,20 @@
     .voice-panel {
         width: 260px;
         bottom: 60px;
+    }
+    
+    .voice-btn {
+        min-width: 60px;
+        max-width: 80px;
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+    
+    .voice-btn.mute-btn,
+    .voice-btn.screen-btn {
+        min-width: 44px;
+        max-width: 60px;
+        padding: 8px 10px;
     }
 }
 
