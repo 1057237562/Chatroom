@@ -42,32 +42,67 @@ async def startup_event():
         # Initialize AI Agent if enabled
         if ai_enabled:
             try:
-                api_key = os.getenv("OPENAI_API_KEY")
-                if not api_key:
-                    logger.warning("OPENAI_API_KEY not set. AI Agent disabled.")
-                    ai_enabled = False
-                else:
-                    config = AgentConfig(
-                        openai_api_key=api_key,
-                        agent_name=AGENT_NAME,
-                        model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
-                        temperature=float(os.getenv("OPENAI_TEMPERATURE", "0.7")),
-                        max_tokens=int(os.getenv("OPENAI_MAX_TOKENS", "500")),
-                        timeout=int(os.getenv("OPENAI_TIMEOUT", "30")),
-                        retry_attempts=int(os.getenv("OPENAI_RETRY_ATTEMPTS", "3"))
-                    )
-                    ai_agent = AIAgent(config)
-                    
-                    # Test connection
-                    if await ai_agent.health_check():
-                        logger.info("AI Agent initialized successfully")
+                ai_provider = os.getenv("AI_PROVIDER", "openai")
+                
+                if ai_provider == "glm":
+                    # Use GLM (Zhipu AI)
+                    api_key = os.getenv("GLM_API_KEY")
+                    if not api_key:
+                        logger.warning("GLM_API_KEY not set. AI Agent disabled.")
+                        ai_enabled = False
                     else:
-                        logger.warning("AI Agent health check failed")
+                        config = AgentConfig(
+                            glm_api_key=api_key,
+                            agent_name=AGENT_NAME,
+                            model=os.getenv("GLM_MODEL", "glm-4-flash-250414"),
+                            temperature=float(os.getenv("GLM_TEMPERATURE", "0.7")),
+                            max_tokens=int(os.getenv("GLM_MAX_TOKENS", "500")),
+                            timeout=int(os.getenv("GLM_TIMEOUT", "30")),
+                            retry_attempts=int(os.getenv("GLM_RETRY_ATTEMPTS", "3")),
+                            ai_provider="glm"
+                        )
+                        ai_agent = AIAgent(config)
+                        logger.info(f"AI Agent object created: {ai_agent}")
+                        
+                        # Test connection
+                        if await ai_agent.health_check():
+                            logger.info("GLM AI Agent initialized successfully")
+                            logger.info(f"AI Agent variable after initialization: ai_agent={ai_agent is not None}")
+                        else:
+                            logger.warning("GLM AI Agent health check failed")
+                else:
+                    # Default to OpenAI
+                    api_key = os.getenv("OPENAI_API_KEY")
+                    if not api_key:
+                        logger.warning("OPENAI_API_KEY not set. AI Agent disabled.")
+                        ai_enabled = False
+                    else:
+                        config = AgentConfig(
+                            openai_api_key=api_key,
+                            agent_name=AGENT_NAME,
+                            model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
+                            temperature=float(os.getenv("OPENAI_TEMPERATURE", "0.7")),
+                            max_tokens=int(os.getenv("OPENAI_MAX_TOKENS", "500")),
+                            timeout=int(os.getenv("OPENAI_TIMEOUT", "30")),
+                            retry_attempts=int(os.getenv("OPENAI_RETRY_ATTEMPTS", "3")),
+                            ai_provider="openai"
+                        )
+                        ai_agent = AIAgent(config)
+                        logger.info(f"AI Agent object created: {ai_agent}")
+                        
+                        # Test connection
+                        if await ai_agent.health_check():
+                            logger.info("OpenAI Agent initialized successfully")
+                            logger.info(f"AI Agent variable after initialization: ai_agent={ai_agent is not None}")
+                        else:
+                            logger.warning("OpenAI Agent health check failed")
             except Exception as e:
-                logger.error(f"Failed to initialize AI Agent: {e}")
+                logger.error(f"Failed to initialize AI Agent: {e}", exc_info=True)
                 ai_enabled = False
     except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
+        logger.error(f"Failed to initialize database: {e}", exc_info=True)
+    
+    logger.info(f"Startup event completed: ai_agent={ai_agent is not None}, ai_enabled={ai_enabled}")
 
 def get_timestamp() -> str:
     """Get current time in HH:mm:ss format"""
@@ -80,9 +115,11 @@ async def root():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    logger.info("WebSocket connection accepted")
     try:
         while True:
             data = await websocket.receive_text()
+            logger.info(f"Received WebSocket message: {data}")
             # First message is treated as username if not yet set
             if websocket not in user_map:
                 username = data.strip()
@@ -96,15 +133,26 @@ async def websocket_endpoint(websocket: WebSocket):
                 current_users.add(username)
                 await broadcast_user_list()
                 await websocket.send_text(json.dumps({"type":"info","text":f"Welcome, {username}!"}))
+                logger.info(f"User {username} joined the chat")
             else:
                 username = user_map[websocket]
                 message = data.strip()
+                logger.info(f"User {username} sent message: {message}")
+                logger.info(f"Global variables during message: ai_enabled={ai_enabled}, ai_agent={ai_agent is not None}")
+                
+                # Safety check: if ai_enabled is True but ai_agent is None, try to reinitialize
+                if ai_enabled and ai_agent is None:
+                    logger.warning("AI is enabled but agent is None, attempting to reinitialize...")
+                    await startup_event()
+                
                 if message:
                     # Check if message is a command (starts with /)
                     if message.startswith("/"):
                         await handle_command(websocket, username, message)
                     else:
                         await broadcast_message(f"{username}: {message}")
+                else:
+                    logger.warning(f"Empty message from {username}, skipping")
     except WebSocketDisconnect:
         if websocket in user_map:
             username = user_map.pop(websocket)
@@ -264,6 +312,7 @@ async def broadcast_message(message: str):
         "text": message,
         "timestamp": timestamp
     })
+    logger.debug(f"Broadcasting message to {len(user_map)} users: {message}")
     for ws in list(user_map.keys()):
         await ws.send_text(payload)
     
@@ -277,15 +326,21 @@ async def broadcast_message(message: str):
         asyncio.create_task(save_message(username, content, timestamp))
     
     # Process with AI Agent if enabled and message is from a real user
+    logger.info(f"Checking AI processing conditions: ai_enabled={ai_enabled}, ai_agent={ai_agent is not None}, parts_len={len(parts)}")
     if ai_enabled and ai_agent and len(parts) == 2:
         username = parts[0].strip()
         content = parts[1].strip()
         
         # Don't reply to AI's own messages
         if username != AGENT_NAME:
+            logger.info(f"Triggering AI response for user {username} with content: {content}")
             asyncio.create_task(
                 _process_ai_response(username, content, timestamp)
             )
+        else:
+            logger.info(f"Skipping AI response for AI's own message from {username}")
+    else:
+        logger.info("AI processing conditions not met, skipping AI response")
 
 async def handle_command(websocket: WebSocket, username: str, message: str):
     """Parse and execute a command."""
@@ -368,7 +423,14 @@ async def _process_ai_response(username: str, content: str, timestamp: str):
     global ai_agent
     
     if not ai_agent:
+        logger.warning("AI Agent not initialized, skipping AI response")
         return
+    
+    if not ai_enabled:
+        logger.warning("AI not enabled, skipping AI response")
+        return
+    
+    logger.info(f"Processing AI response for message from {username}: {content}")
     
     try:
         # Update AI's user list
@@ -396,6 +458,8 @@ async def _process_ai_response(username: str, content: str, timestamp: str):
             logger.warning(f"AI processing failed: {ai_response.message}")
             return
         
+        logger.info(f"AI generated response: type={ai_response.response_type}, message={ai_response.message}")
+        
         # Handle different response types
         if ai_response.response_type == "command":
             # AI wants to execute a command
@@ -406,7 +470,11 @@ async def _process_ai_response(username: str, content: str, timestamp: str):
             await _send_ai_private_message(username, ai_response.message)
         else:
             # AI wants to broadcast a reply
+            logger.info(f"Broadcasting AI message: {ai_response.message}")
             await broadcast_message(f"{AGENT_NAME}: {ai_response.message}")
+    
+    except Exception as e:
+        logger.error(f"Error processing AI response: {e}", exc_info=True)
     
     except Exception as e:
         logger.error(f"Error processing AI response: {e}")

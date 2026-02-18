@@ -10,7 +10,8 @@ from typing import Optional, Any
 class AgentConfig:
     """Configuration for AI Agent."""
     
-    openai_api_key: str
+    openai_api_key: str = ""
+    glm_api_key: str = ""
     model: str = "gpt-3.5-turbo"
     agent_name: str = "AI"
     temperature: float = 0.7
@@ -18,6 +19,7 @@ class AgentConfig:
     timeout: int = 30
     retry_attempts: int = 3
     retry_delay: float = 1.0
+    ai_provider: str = "openai"  # Options: openai, glm
 
 
 @dataclass

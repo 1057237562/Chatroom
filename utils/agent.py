@@ -1,6 +1,6 @@
 """
-AI Agent module for OpenAI integration with chatroom system.
-Provides async OpenAI client and message processing capabilities.
+AI Agent module for OpenAI/GLM integration with chatroom system.
+Provides async AI client and message processing capabilities.
 """
 
 import asyncio
@@ -13,6 +13,11 @@ try:
     from openai import AsyncOpenAI, RateLimitError, APIError, APIConnectionError, Timeout
 except ImportError:
     raise ImportError("openai library not found. Install it with: pip install openai")
+
+try:
+    from zai import ZhipuAiClient
+except ImportError:
+    ZhipuAiClient = None
 
 from utils.types import (
     AgentConfig,
@@ -27,21 +32,35 @@ logger = logging.getLogger(__name__)
 
 
 class AIAgent:
-    """AI Agent for chatroom with OpenAI integration."""
+    """AI Agent for chatroom with OpenAI/GLM integration."""
     
     def __init__(self, config: AgentConfig):
         """
         Initialize AI Agent with configuration.
         
         Args:
-            config: AgentConfig instance with OpenAI settings
+            config: AgentConfig instance with AI settings
         """
         self.config = config
-        self.client = AsyncOpenAI(api_key=config.openai_api_key)
+        self.client = None
+        self.glm_client = None
         self.conversation_history: list[dict[str, str]] = []
         self.current_users: list[str] = []
         self.message_cache: dict[str, str] = {}
-        logger.info(f"AIAgent initialized with model: {config.model}")
+        
+        if config.ai_provider == "glm":
+            if ZhipuAiClient is None:
+                raise ImportError("zai-sdk library not found. Install it with: pip install zai-sdk")
+            if not config.glm_api_key:
+                raise ValueError("GLM API key is required when using GLM provider")
+            self.glm_client = ZhipuAiClient(api_key=config.glm_api_key)
+            logger.info(f"AIAgent initialized with GLM model: {config.model}")
+        else:
+            # Default to OpenAI
+            if not config.openai_api_key:
+                raise ValueError("OpenAI API key is required when using OpenAI provider")
+            self.client = AsyncOpenAI(api_key=config.openai_api_key)
+            logger.info(f"AIAgent initialized with OpenAI model: {config.model}")
     
     async def process_message(
         self,
@@ -60,6 +79,8 @@ class AIAgent:
         Returns:
             AgentResponse with the AI's reaction
         """
+        logger.info(f"AI processing message from {message.username}: {message.content}")
+        
         try:
             self.current_users = current_users
             
@@ -71,10 +92,11 @@ class AIAgent:
             else:
                 response = await self._generate_reply(message, current_users)
             
+            logger.info(f"AI response generated: {response.message}")
             return response
         
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
+            logger.error(f"Error processing message: {e}", exc_info=True)
             return AgentResponse(
                 success=False,
                 message=f"I encountered an error processing that message. Please try again.",
@@ -112,11 +134,13 @@ class AIAgent:
             system_prompt = get_system_prompt(self.config.agent_name, current_users)
             user_content = f"{message.username}: {message.content}"
             
-            # Call OpenAI API with retry logic
-            reply = await self._call_openai_with_retry(
+            # Call AI API with retry logic
+            reply = await self._call_ai_with_retry(
                 system_prompt,
                 user_content
             )
+            
+            logger.info(f"Raw AI reply: '{reply}'")
             
             # Cache the reply (simple caching, not time-based)
             if len(self.message_cache) > 100:
@@ -131,27 +155,36 @@ class AIAgent:
                 response_type="info"
             )
         
-        except (RateLimitError, Timeout) as e:
-            logger.warning(f"OpenAI API rate limit or timeout: {e}")
+        except Exception as e:
+            if self.config.ai_provider == "openai":
+                # Handle OpenAI-specific exceptions
+                if isinstance(e, (RateLimitError, Timeout)):
+                    logger.warning(f"OpenAI API rate limit or timeout: {e}")
+                    return AgentResponse(
+                        success=False,
+                        message="I'm a bit overwhelmed right now. Please try again in a moment.",
+                        response_type="info"
+                    )
+                elif isinstance(e, APIConnectionError):
+                    logger.error(f"OpenAI API connection error: {e}")
+                    return AgentResponse(
+                        success=False,
+                        message="Sorry, I'm having connection issues. Please try again later.",
+                        response_type="error"
+                    )
+                elif isinstance(e, APIError):
+                    logger.error(f"OpenAI API error: {e}")
+                    return AgentResponse(
+                        success=False,
+                        message="I encountered an error. Please try again.",
+                        response_type="error"
+                    )
+            
+            # Handle GLM or other exceptions
+            logger.error(f"AI API error: {e}", exc_info=True)
             return AgentResponse(
                 success=False,
-                message="I'm a bit overwhelmed right now. Please try again in a moment.",
-                response_type="info"
-            )
-        
-        except APIConnectionError as e:
-            logger.error(f"OpenAI API connection error: {e}")
-            return AgentResponse(
-                success=False,
-                message="Sorry, I'm having connection issues. Please try again later.",
-                response_type="error"
-            )
-        
-        except APIError as e:
-            logger.error(f"OpenAI API error: {e}")
-            return AgentResponse(
-                success=False,
-                message="I encountered an error. Please try again.",
+                message="I encountered an error processing your message.",
                 response_type="error"
             )
     
@@ -228,7 +261,7 @@ class AIAgent:
             system_prompt = get_system_prompt(self.config.agent_name, self.current_users)
             user_content = f"[PRIVATE] {message.username}: {message.content}"
             
-            reply = await self._call_openai_with_retry(system_prompt, user_content)
+            reply = await self._call_ai_with_retry(system_prompt, user_content)
             
             return AgentResponse(
                 success=True,
@@ -244,6 +277,35 @@ class AIAgent:
                 message="Sorry, I had an error processing your private message.",
                 response_type="error"
             )
+    
+    async def _call_ai_with_retry(
+        self,
+        system_prompt: str,
+        user_content: str,
+        attempt: int = 1
+    ) -> str:
+        """
+        Call AI API (OpenAI or GLM) with exponential backoff retry logic.
+        
+        Args:
+            system_prompt: System prompt for context
+            user_content: User message content
+            attempt: Current attempt number
+            
+        Returns:
+            Response text from AI API
+            
+        Raises:
+            Various API exceptions after max retries
+        """
+        try:
+            if self.config.ai_provider == "glm":
+                return await self._call_glm_with_retry(system_prompt, user_content, attempt)
+            else:
+                return await self._call_openai_with_retry(system_prompt, user_content, attempt)
+        except Exception as e:
+            logger.error(f"Error in AI API call: {e}")
+            raise
     
     async def _call_openai_with_retry(
         self,
@@ -302,6 +364,65 @@ class AIAgent:
             logger.error(f"OpenAI API call timeout after {self.config.timeout}s")
             raise Timeout(f"API call timeout after {self.config.timeout}s")
     
+    async def _call_glm_with_retry(
+        self,
+        system_prompt: str,
+        user_content: str,
+        attempt: int = 1
+    ) -> str:
+        """
+        Call GLM API with exponential backoff retry logic.
+        
+        Args:
+            system_prompt: System prompt for context
+            user_content: User message content
+            attempt: Current attempt number
+            
+        Returns:
+            Response text from GLM
+            
+        Raises:
+            Various API exceptions after max retries
+        """
+        try:
+            # GLM SDK is synchronous, so we need to run it in a thread pool
+            loop = asyncio.get_event_loop()
+            
+            def call_glm():
+                return self.glm_client.chat.completions.create(
+                    model=self.config.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content}
+                    ],
+                    temperature=self.config.temperature,
+                    max_tokens=self.config.max_tokens
+                )
+            
+            response = await asyncio.wait_for(
+                loop.run_in_executor(None, call_glm),
+                timeout=self.config.timeout
+            )
+            
+            reply = response.choices[0].message.content.strip()
+            logger.debug(f"GLM response received: {len(reply)} chars")
+            return reply
+        
+        except Exception as e:
+            if attempt < self.config.retry_attempts:
+                # Exponential backoff
+                wait_time = self.config.retry_delay * (2 ** (attempt - 1))
+                logger.info(f"GLM retry attempt {attempt}/{self.config.retry_attempts}, waiting {wait_time}s")
+                await asyncio.sleep(wait_time)
+                return await self._call_glm_with_retry(
+                    system_prompt,
+                    user_content,
+                    attempt + 1
+                )
+            else:
+                logger.error(f"Max retries exceeded for GLM call: {e}")
+                raise
+    
     async def get_users(self) -> list[str]:
         """
         Get list of current online users.
@@ -328,23 +449,41 @@ class AIAgent:
     
     async def health_check(self) -> bool:
         """
-        Check if the OpenAI API is accessible.
+        Check if the AI API (OpenAI or GLM) is accessible.
         
         Returns:
             True if API is accessible, False otherwise
         """
         try:
             # Simple test by calling a lightweight endpoint
-            response = await asyncio.wait_for(
-                self.client.chat.completions.create(
-                    model=self.config.model,
-                    messages=[
-                        {"role": "user", "content": "Hi"}
+            if self.config.ai_provider == "glm":
+                # GLM SDK is synchronous, run in thread pool
+                loop = asyncio.get_event_loop()
+                
+                def call_glm_health():
+                    return self.glm_client.chat.completions.create(
+                        model=self.config.model,
+                        messages=[
+                            {"role": "user", "content": "Hi"}
+                        ],
+                        max_tokens=10
+                    )
+                
+                response = await asyncio.wait_for(
+                    loop.run_in_executor(None, call_glm_health),
+                    timeout=5
+                )
+            else:
+                response = await asyncio.wait_for(
+                    self.client.chat.completions.create(
+                        model=self.config.model,
+                        messages=[
+                            {"role": "user", "content": "Hi"}
                     ],
-                    max_tokens=10
-                ),
-                timeout=5
-            )
+                        max_tokens=10
+                    ),
+                    timeout=5
+                )
             logger.info("Health check passed")
             return True
         
